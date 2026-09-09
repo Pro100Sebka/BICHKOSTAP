@@ -233,6 +233,7 @@
 <script>
     let currentNick = localStorage.getItem('bf_nick') || '';
     let sessionToken = sessionStorage.getItem('bf_token') || '';
+    let currentHookToken = null; // Токен текущего заброса
 
     let mgAngle = 0;
     let mgZoneStart = 0;
@@ -241,7 +242,7 @@
     let mgHitsDone = 0;
     let mgClickTimestamps = [];
     let mgAnimId = null;
-    let lastFrameTime = performance.now(); // Переменная для тайминга независимой скорости (Delta Time)
+    let lastFrameTime = performance.now();
 
     if (currentNick && sessionToken) {
         syncData();
@@ -374,6 +375,8 @@
             return;
         }
 
+        currentHookToken = hookData.hookToken; // Запоминаем токен заброса
+
         document.getElementById('hunger-bar-fill').style.width = `${hookData.hunger}%`;
         document.getElementById('hunger-text').innerText = `СЫТОСТЬ: ${hookData.hunger} / 100`;
 
@@ -395,7 +398,7 @@
         mgHitsDone = 0;
         mgClickTimestamps = [];
         mgAngle = 0;
-        lastFrameTime = performance.now(); // Сброс таймера для независимой скорости
+        lastFrameTime = performance.now();
 
         document.getElementById('mg-counter').innerText = `ПОПАДАНИЙ: 0 / 5`;
         
@@ -413,12 +416,10 @@
         const cy = canvas.height / 2;
         const radius = 100;
 
-        // Фикс скорости (Delta Time): рассчитываем реальное время между кадрами
         const now = performance.now();
         const dt = (now - lastFrameTime) / 1000;
         lastFrameTime = now;
 
-        // Базовая скорость: 180 градусов в секунду * множитель рыбы
         mgAngle = (mgAngle + 180 * mgSpeed * dt) % 360;
 
         ctx.fillStyle = '#0a0a0a';
@@ -503,7 +504,6 @@
             if (mgHitsDone >= 5) {
                 finishMinigame();
             } else {
-                // Перемещение зеленой зоны в случайную позицию после каждого попадания
                 mgZoneStart = Math.floor(Math.random() * (360 - mgZoneSize));
             }
         } else {
@@ -517,6 +517,7 @@
         document.getElementById('fishing-float').style.display = 'none';
         document.getElementById('status-text').innerText = "Мимо! Рыба сорвалась.";
         document.getElementById('cast-btn').disabled = false;
+        currentHookToken = null;
     }
 
     async function finishMinigame() {
@@ -524,7 +525,12 @@
         document.getElementById('minigame-modal').style.display = 'none';
         document.getElementById('fishing-float').style.display = 'none';
 
-        const data = await req('/api/catch', { clickTimestamps: mgClickTimestamps });
+        const data = await req('/api/catch', { 
+            hookToken: currentHookToken, 
+            clickTimestamps: mgClickTimestamps 
+        });
+
+        currentHookToken = null;
 
         if (data.success) {
             document.getElementById('status-text').innerText = `ПОЙМАН: ${data.fish.displayName}`;
@@ -591,14 +597,14 @@
     async function savePlayerData(targetNick) {
         const newYuan = document.getElementById(`adm-yuan-${targetNick}`).value;
         const newScore = document.getElementById(`adm-score-${targetNick}`).value;
-        await req('/api/admin/updatePlayer', { targetNick, newYuan, newScore });
+        await req('/api/updatePlayer', { targetNick, newYuan, newScore });
         openAdminModal();
         if (targetNick === currentNick) syncData();
     }
 
     async function deletePlayer(targetNick) {
         if (!confirm(`Удалить ${targetNick}?`)) return;
-        await req('/api/admin/updatePlayer', { targetNick, deleteAccount: true });
+        await req('/api/updatePlayer', { targetNick, deleteAccount: true });
         openAdminModal();
     }
 

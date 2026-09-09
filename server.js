@@ -44,8 +44,8 @@ const SHOP_BAITS = {
 };
 
 const SHOP_FOOD = {
-    'snack': { name: 'Снек', price: 15, restore: 20 },
-    'meal': { name: 'Сытный обед', price: 40, restore: 50 }
+    'snack': { name: 'Снек', price: 0.75, restore: 20 },
+    'meal': { name: 'Сытный обед', price: 2, restore: 50 }
 };
 
 function calculatePrice(weight, isTrophy) {
@@ -208,7 +208,11 @@ app.post('/api/cast', (req, res) => {
     zoneDegree = Math.min(320, Math.max(15, zoneDegree));
     const startAngle = Math.floor(Math.random() * (360 - zoneDegree));
 
+    // Генерация одноразового ключа подсечки (Hook Nonce)
+    const hookToken = crypto.randomBytes(8).toString('hex');
+
     p.currentHook = {
+        hookToken,
         fish: {
             id: selectedType.id,
             displayName: selectedType.displayName,
@@ -225,6 +229,7 @@ app.post('/api/cast', (req, res) => {
 
     res.json({
         success: true,
+        hookToken,
         zoneStart: p.currentHook.zoneStart,
         zoneSize: p.currentHook.zoneSize,
         speed: p.currentHook.speed,
@@ -237,57 +242,84 @@ app.post('/api/cast', (req, res) => {
 
 app.post('/api/catch', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
-    if (!p || !p.currentHook) return res.status(400).json({ error: 'Неверное состояние подсечки' });
+    if (!p || !p.currentHook) {
+        return res.status(400).json({ success: false, reason: 'Нет активного заброса!' });
+    }
 
-    const { clickTimestamps } = req.body;
+    const { hookToken, clickTimestamps } = req.body;
 
-    if (!Array.isArray(clickTimestamps) || clickTimestamps.length !== 5) {
+    // 1. ПРОВЕРКА ОДНОРАЗОВОГО ТОКЕНА
+    if (!hookToken || hookToken !== p.currentHook.hookToken) {
         p.currentHook = null;
-        return res.json({ success: false, reason: 'Ошибка передачи данных подсечки!' });
+        return res.status(403).json({ success: false, reason: '🚨 Токен заброса недействителен или уже использован!' });
     }
 
-    let intervals = [];
-    for (let i = 1; i < clickTimestamps.length; i++) {
-        intervals.push(clickTimestamps[i] - clickTimestamps[i - 1]);
+    const now = Date.now();
+    const activeHook = p.currentHook;
+    
+    // Моментально сжигаем текущий hookToken, чтобы исключить повтор
+    p.currentHook = null;
+
+    let isBotDetected = false;
+
+    // 2. СЕРВЕРНАЯ ПРОВЕРКА МИНИМАЛЬНОГО ВРЕМЕНИ (Физический предел человека)
+    const elapsedTime = now - activeHook.castTime;
+    const minRealisticTimeMs = 1200; // На 5 попаданий со сдвигом нужно минимум 1.2с
+
+    if (elapsedTime < minRealisticTimeMs) {
+        isBotDetected = true;
     }
 
-    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const variance = intervals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / intervals.length;
-    const stdDev = Math.sqrt(variance);
+    // 3. ПРОВЕРКА КЛИКОВ И ИНТЕРВАЛОВ
+    if (!Array.isArray(clickTimestamps) || clickTimestamps.length !== 5) {
+        isBotDetected = true;
+    } else {
+        let intervals = [];
+        for (let i = 1; i < clickTimestamps.length; i++) {
+            intervals.push(clickTimestamps[i] - clickTimestamps[i - 1]);
+        }
 
-    const hasImpossibleSpeed = intervals.some(dt => dt < 90);
-    const isBotDetected = (stdDev < 12) || hasImpossibleSpeed;
+        const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const variance = intervals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / intervals.length;
+        const stdDev = Math.sqrt(variance);
+
+        const hasImpossibleSpeed = intervals.some(dt => dt < 80);
+        
+        // Валидация временных меток в рамках серверного заброса
+        const invalidTimestamps = clickTimestamps.some(t => t < activeHook.castTime || t > now);
+
+        if ((stdDev < 12) || hasImpossibleSpeed || invalidTimestamps) {
+            isBotDetected = true;
+        }
+    }
 
     if (isBotDetected) {
-        p.currentHook = null;
         p.warnings = (p.warnings || 0) + 1;
 
         if (p.warnings >= 2) {
-            const oldYuan = p.yuan;
             p.yuan = parseFloat((p.yuan * 0.5).toFixed(2));
-            p.inventory = []; // ШТРАФ: Удаление всей рыбы из инвентаря
+            p.inventory = [];
             p.warnings = 0;
             return res.json({
                 success: false,
                 penalty: true,
                 yuan: p.yuan,
                 inventory: p.inventory,
-                reason: `🚨 АНТИЧИТ: Автоподсечка! Отнято 50% юаней и ВСЯ рыба из инвентаря.`
+                reason: `🚨 АНТИЧИТ: Зафиксирована автоподсечка/подмена запросов! Отнято 50% юаней и ВСЯ рыба.`
             });
         } else {
             return res.json({
                 success: false,
                 warning: true,
                 warningsCount: p.warnings,
-                reason: `⚠️ ПРЕДУПРЕЖДЕНИЕ (1/2): Зафиксирована автоподсечка! При повторе отнимет 50% юаней и ВСЮ рыбу.`
+                reason: `⚠️ ПРЕДУПРЕЖДЕНИЕ (1/2): Зафиксирована подозрительная активность или подмена токенов!`
             });
         }
     }
 
-    const caughtFish = p.currentHook.fish;
+    const caughtFish = activeHook.fish;
     p.inventory.push(caughtFish);
     p.score += 1;
-    p.currentHook = null;
 
     res.json({ success: true, fish: caughtFish, score: p.score, hunger: p.hunger });
 });
