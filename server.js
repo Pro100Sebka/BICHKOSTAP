@@ -5,7 +5,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// База данных игроков
 const players = {
     'xonntixx': {
         password: '19210',
@@ -14,43 +13,39 @@ const players = {
         yuan: 1000,
         score: 0,
         inventory: [],
+        baits: { bread: 3, worm: 0, premium: 0 },
         activeBait: null,
+        warnings: 0,
         currentHook: null,
         sessionToken: null
     }
 };
 
 const CALLSIGNS = {
-    'ОСТАП': { name: 'ОСТАП', bonusText: 'Легендарная удача (+30% размер круга, +10% редкая рыба)', sizeMod: 1.3, rareMod: 0.1, timeMod: 1.0, sellMod: 1.0 },
-    'СОКОЛ': { name: 'СОКОЛ', bonusText: 'Быстрые рефлексы (+25% времени на подсечку)', sizeMod: 1.0, rareMod: 0.0, timeMod: 1.25, sellMod: 1.0 },
-    'ФАНТОМ': { name: 'ФАНТОМ', bonusText: 'Теневой барыга (+15% к стоимости продажи)', sizeMod: 1.0, rareMod: 0.0, timeMod: 1.0, sellMod: 1.15 },
-    'ЩУКА': { name: 'ЩУКА', bonusText: 'Опытный рыбак (+15% к размеру круга)', sizeMod: 1.15, rareMod: 0.0, timeMod: 1.0, sellMod: 1.0 }
+    'ОСТАП': { name: 'ОСТАП', bonusText: 'Удача (+30% зеленая зона, +10% редкая рыба)', zoneMod: 1.3, rareMod: 0.3, sellMod: 1.0 },
+    'КОЧ': { name: 'КОЧ', bonusText: 'Узкоглазый (-20% скорость вращения стрелки)', zoneMod: 1.0, rareMod: 0.0, speedMod: 0.8, sellMod: 1.0 },
+    'СЕМКА': { name: 'СЕМКА', bonusText: 'Жадина (+15% к стоимости продажи)', zoneMod: 1.0, rareMod: 0.0, sellMod: 1.15 },
+    'ПАША': { name: 'ПАША', bonusText: 'Рускый хакер (+15% зеленая зона)', zoneMod: 1.15, rareMod: 0.0, sellMod: 1.0 }
 };
 
 const FISH_TYPES = [
-    { id: 'dirty', displayName: 'ГРЯЗНЫЙ БЫЧОК 🚬', isTrophy: false, weightRange: [30, 70], probability: 0.40, minigame: { clicks: 3, size: 60, time: 3200 } },
-    { id: 'used', displayName: 'Б/У БЫЧОК 👟', isTrophy: false, weightRange: [70, 100], probability: 0.30, minigame: { clicks: 3, size: 55, time: 2800 } },
-    { id: 'chill', displayName: 'ЧИЛОВЫЙ БЫЧОК 😎', isTrophy: false, weightRange: [100, 300], probability: 0.15, minigame: { clicks: 4, size: 45, time: 2400 } },
-    { id: 'golden', displayName: 'ЗОЛОТОЙ БЫЧОК ✨', isTrophy: true, weightRange: [200, 800], probability: 0.10, minigame: { clicks: 4, size: 35, time: 2000 } },
-    { id: 'look', displayName: 'ЛУКБЫЧОК 🌱', isTrophy: true, weightRange: [2000, 4000], probability: 0.05, minigame: { clicks: 5, size: 25, time: 1600 } }
+    { id: 'dirty', displayName: 'ГРЯЗНЫЙ БЫЧОК 🚬', isTrophy: false, weightRange: [30, 70], probability: 0.40, zoneSize: 60, speed: 1.0 },
+    { id: 'used', displayName: 'Б/У БЫЧОК 👟', isTrophy: false, weightRange: [70, 100], probability: 0.30, zoneSize: 50, speed: 1.2 },
+    { id: 'chill', displayName: 'ЧИЛОВЫЙ БЫЧОК 😎', isTrophy: false, weightRange: [100, 300], probability: 0.15, zoneSize: 40, speed: 1.4 },
+    { id: 'golden', displayName: 'ЗОЛОТОЙ БЫЧОК ✨', isTrophy: true, weightRange: [200, 800], probability: 0.10, zoneSize: 30, speed: 1.6 },
+    { id: 'look', displayName: 'ЛУКБЫЧОК 🌱', isTrophy: true, weightRange: [2000, 4000], probability: 0.05, zoneSize: 22, speed: 1.9 }
 ];
 
 const SHOP_BAITS = {
-    'bread': { name: 'Хлеб', price: 50, sizeMultiplier: 1.2 },
-    'worm': { name: 'Червяк', price: 150, sizeMultiplier: 1.5 },
-    'premium': { name: 'Опарыш', price: 500, sizeMultiplier: 2.0 }
+    'bread': { name: 'Хлеб', price: 50, zoneMultiplier: 1.25 },
+    'worm': { name: 'Червяк', price: 150, zoneMultiplier: 1.5 },
+    'premium': { name: 'Опарыш', price: 500, zoneMultiplier: 2.0 }
 };
 
-// Расчет цены строго по правилу: 100г обычных = 1 юань, 100г трофейных = 2 юаня
 function calculatePrice(weight, isTrophy) {
-    if (isTrophy) {
-        return parseFloat((weight / 50).toFixed(2)); // 100g = 2 yuan
-    } else {
-        return parseFloat((weight / 100).toFixed(2)); // 100g = 1 yuan
-    }
+    return isTrophy ? parseFloat((weight / 50).toFixed(2)) : parseFloat((weight / 100).toFixed(2));
 }
 
-// Авторизация по токену
 function authByToken(nick, token) {
     if (!nick || !token || !players[nick]) return null;
     if (players[nick].sessionToken !== token) return null;
@@ -60,10 +55,9 @@ function authByToken(nick, token) {
 // Регистрация / Вход
 app.post('/api/login', (req, res) => {
     const { nick, password, callsign } = req.body;
-    if (!nick || !password) return res.json({ success: false, error: 'Заполните ник и пароль!' });
+    if (!nick || !password) return res.json({ success: false, error: 'Заполните все поля!' });
 
-    const selectedCallsign = (callsign || 'ЩУКА').toUpperCase();
-    const csData = CALLSIGNS[selectedCallsign] || CALLSIGNS['ЩУКА'];
+    const csData = CALLSIGNS[(callsign || 'ЩУКА').toUpperCase()] || CALLSIGNS['ЩУКА'];
 
     if (!players[nick]) {
         players[nick] = {
@@ -73,7 +67,9 @@ app.post('/api/login', (req, res) => {
             yuan: 0,
             score: 0,
             inventory: [],
+            baits: { bread: 0, worm: 0, premium: 0 },
             activeBait: null,
+            warnings: 0,
             currentHook: null,
             sessionToken: null
         };
@@ -95,36 +91,68 @@ app.post('/api/login', (req, res) => {
         yuan: p.yuan,
         score: p.score,
         inventory: p.inventory,
-        activeBait: p.activeBait
+        baits: p.baits,
+        activeBait: p.activeBait,
+        warnings: p.warnings
     });
 });
 
-// Синхронизация
 app.post('/api/sync', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
-    if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
+    if (!p) return res.status(401).json({ error: 'Сессия недействительна' });
 
     res.json({
         yuan: p.yuan,
         score: p.score,
         inventory: p.inventory,
+        baits: p.baits,
         activeBait: p.activeBait,
         callsign: p.callsign,
         callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА']).bonusText,
+        warnings: p.warnings,
         isAdmin: !!p.isAdmin
     });
+});
+
+// Купить наживку в инвентарь
+app.post('/api/buyBait', (req, res) => {
+    const p = authByToken(req.body.nick, req.body.token);
+    if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
+
+    const bait = SHOP_BAITS[req.body.baitId];
+    if (!bait || p.yuan < bait.price) return res.json({ success: false, error: 'Недостаточно юаней!' });
+
+    p.yuan = parseFloat((p.yuan - bait.price).toFixed(2));
+    p.baits[req.body.baitId] = (p.baits[req.body.baitId] || 0) + 1;
+
+    res.json({ success: true, yuan: p.yuan, baits: p.baits });
+});
+
+// Экипировать / Снять наживку
+app.post('/api/equipBait', (req, res) => {
+    const p = authByToken(req.body.nick, req.body.token);
+    if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
+
+    const baitId = req.body.baitId;
+    if (baitId === null) {
+        p.activeBait = null;
+    } else if (p.baits[baitId] > 0) {
+        p.activeBait = baitId;
+    } else {
+        return res.json({ success: false, error: 'Наживки нет в наличии!' });
+    }
+
+    res.json({ success: true, activeBait: p.activeBait });
 });
 
 // Заброс удочки
 app.post('/api/cast', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
-    if (!p) return res.status(401).json({ error: 'Необходима авторизация' });
+    if (!p) return res.status(401).json({ error: 'Авторизуйтесь!' });
 
     const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА'];
 
-    let rand = Math.random();
-    rand -= cs.rareMod; // Учет бонуса позывного к редким рыбам
-
+    let rand = Math.random() - (cs.rareMod || 0);
     let selectedType = FISH_TYPES[0];
     let cumulative = 0;
     for (let fish of FISH_TYPES) {
@@ -135,13 +163,19 @@ app.post('/api/cast', (req, res) => {
     const weight = Math.floor(Math.random() * (selectedType.weightRange[1] - selectedType.weightRange[0] + 1)) + selectedType.weightRange[0];
     const price = calculatePrice(weight, selectedType.isTrophy);
 
-    let size = Math.floor(selectedType.minigame.size * cs.sizeMod);
-    let timeLimit = Math.floor(selectedType.minigame.time * cs.timeMod);
+    let zoneDegree = Math.floor(selectedType.zoneSize * (cs.zoneMod || 1.0));
+    let speed = selectedType.speed * (cs.speedMod || 1.0);
 
-    if (p.activeBait && SHOP_BAITS[p.activeBait]) {
-        size = Math.floor(size * SHOP_BAITS[p.activeBait].sizeMultiplier);
-        p.activeBait = null; // Наживка расходуется
+    // Учет и списание экипированной наживки
+    if (p.activeBait && p.baits[p.activeBait] > 0) {
+        zoneDegree = Math.floor(zoneDegree * SHOP_BAITS[p.activeBait].zoneMultiplier);
+        p.baits[p.activeBait] -= 1;
+        if (p.baits[p.activeBait] <= 0) {
+            p.activeBait = null;
+        }
     }
+
+    const startAngle = Math.floor(Math.random() * (360 - zoneDegree));
 
     p.currentHook = {
         fish: {
@@ -149,34 +183,74 @@ app.post('/api/cast', (req, res) => {
             displayName: selectedType.displayName,
             weight,
             price,
-            isTrophy: selectedType.isTrophy,
-            uid: Date.now() + Math.floor(Math.random() * 1000)
+            isTrophy: selectedType.isTrophy
         },
-        clicksRequired: selectedType.minigame.clicks,
-        timeLimit,
+        zoneStart: startAngle,
+        zoneSize: zoneDegree,
+        speed,
+        requiredHits: 5,
         castTime: Date.now()
     };
 
-    res.json({ clicks: p.currentHook.clicksRequired, size, timeLimit });
+    res.json({
+        zoneStart: p.currentHook.zoneStart,
+        zoneSize: p.currentHook.zoneSize,
+        speed: p.currentHook.speed,
+        requiredHits: 5,
+        baits: p.baits,
+        activeBait: p.activeBait
+    });
 });
 
-// Завершение мини-игры (Подсечка)
+// Проверка подсечки и Серверный Античит
 app.post('/api/catch', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
-    if (!p || !p.currentHook) return res.status(400).json({ error: 'Ошибка подсечки' });
+    if (!p || !p.currentHook) return res.status(400).json({ error: 'Неверное состояние подсечки' });
 
-    const duration = Date.now() - p.currentHook.castTime;
-    const minPossibleTime = p.currentHook.clicksRequired * 120; // Минимум 120мс на клик для защиты от автокликера
+    const { clickTimestamps } = req.body; // Массив из 5 таймстампов кликов
+    const now = Date.now();
 
-    // Проверка античита
-    if (duration < minPossibleTime) {
+    // 1. Проверка структуры данных
+    if (!Array.isArray(clickTimestamps) || clickTimestamps.length !== 5) {
         p.currentHook = null;
-        return res.json({ success: false, reason: '🛡️ АНТИЧИТ: Слишком быстрая подсечка!' });
+        return res.json({ success: false, reason: 'Ошибка передачи данных подсечки!' });
     }
 
-    if (duration > p.currentHook.timeLimit + 1500) {
+    // 2. Детекция автокликеров/ботов по вариативности интервалов (Стандартное отклонение)
+    let intervals = [];
+    for (let i = 1; i < clickTimestamps.length; i++) {
+        intervals.push(clickTimestamps[i] - clickTimestamps[i - 1]);
+    }
+
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const variance = intervals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / intervals.length;
+    const stdDev = Math.sqrt(variance);
+
+    const hasImpossibleSpeed = intervals.some(dt => dt < 90);
+    const isBotDetected = (stdDev < 12) || hasImpossibleSpeed;
+
+    if (isBotDetected) {
         p.currentHook = null;
-        return res.json({ success: false, reason: 'Сорвалось! Время вышло.' });
+        p.warnings = (p.warnings || 0) + 1;
+
+        if (p.warnings >= 2) {
+            const oldYuan = p.yuan;
+            p.yuan = parseFloat((p.yuan * 0.5).toFixed(2));
+            p.warnings = 0;
+            return res.json({
+                success: false,
+                penalty: true,
+                yuan: p.yuan,
+                reason: `🚨 АНТИЧИТ: Замечена автоподсечка! Было ${oldYuan} ¥, стало ${p.yuan} ¥ (-50%).`
+            });
+        } else {
+            return res.json({
+                success: false,
+                warning: true,
+                warningsCount: p.warnings,
+                reason: `⚠️ ПРЕДУПРЕЖДЕНИЕ (1/2): Зафиксирована автоподсечка! При повторе отнимет 50% юаней.`
+            });
+        }
     }
 
     const caughtFish = p.currentHook.fish;
@@ -184,23 +258,10 @@ app.post('/api/catch', (req, res) => {
     p.score += 1;
     p.currentHook = null;
 
-    res.json({ success: true, fish: caughtFish });
+    res.json({ success: true, fish: caughtFish, score: p.score });
 });
 
-// Покупка наживки
-app.post('/api/buy', (req, res) => {
-    const p = authByToken(req.body.nick, req.body.token);
-    if (!p) return res.status(401).json({ error: 'Необходима авторизация' });
-
-    const bait = SHOP_BAITS[req.body.baitId];
-    if (!bait || p.yuan < bait.price) return res.json({ success: false, error: 'Недостаточно юаней!' });
-
-    p.yuan = parseFloat((p.yuan - bait.price).toFixed(2));
-    p.activeBait = req.body.baitId;
-    res.json({ success: true, yuan: p.yuan });
-});
-
-// Продажа всех рыб
+// Продажа
 app.post('/api/sellAll', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Необходима авторизация' });
@@ -209,23 +270,24 @@ app.post('/api/sellAll', (req, res) => {
     let rawEarned = 0;
     p.inventory.forEach(f => rawEarned += f.price);
 
-    const totalEarned = parseFloat((rawEarned * cs.sellMod).toFixed(2));
+    const totalEarned = parseFloat((rawEarned * (cs.sellMod || 1.0)).toFixed(2));
     p.yuan = parseFloat((p.yuan + totalEarned).toFixed(2));
     p.inventory = [];
 
     res.json({ success: true, earned: totalEarned, yuan: p.yuan });
 });
 
-// --- АДМИН-ПАНЕЛЬ ---
+// Админка
 app.post('/api/admin/getPlayers', (req, res) => {
     const admin = authByToken(req.body.nick, req.body.token);
-    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Отказано в доступе' });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Отказано' });
 
     const list = Object.keys(players).map(n => ({
         nick: n,
         callsign: players[n].callsign,
         yuan: players[n].yuan,
         score: players[n].score,
+        warnings: players[n].warnings || 0,
         inventoryCount: players[n].inventory.length,
         isAdmin: !!players[n].isAdmin
     }));
@@ -235,20 +297,19 @@ app.post('/api/admin/getPlayers', (req, res) => {
 
 app.post('/api/admin/updatePlayer', (req, res) => {
     const admin = authByToken(req.body.nick, req.body.token);
-    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Отказано в доступе' });
+    if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Отказано' });
 
-    const { targetNick, newYuan, newScore, clearInventory, deleteAccount } = req.body;
+    const { targetNick, newYuan, newScore, deleteAccount } = req.body;
     if (!players[targetNick]) return res.json({ success: false, error: 'Игрок не найден' });
 
     if (deleteAccount) {
-        if (targetNick === 'xonntixx') return res.json({ success: false, error: 'Главного админа нельзя удалить!' });
+        if (targetNick === 'xonntixx') return res.json({ success: false, error: 'Нельзя удалить главного админа' });
         delete players[targetNick];
-        return res.json({ success: true, message: 'Удалено' });
+        return res.json({ success: true });
     }
 
     if (newYuan !== undefined) players[targetNick].yuan = parseFloat(newYuan);
     if (newScore !== undefined) players[targetNick].score = parseInt(newScore);
-    if (clearInventory) players[targetNick].inventory = [];
 
     res.json({ success: true });
 });
