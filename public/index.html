@@ -2,688 +2,285 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BUTT FISHING</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body { background-color: #1a1a1a; color: #d3d3d3; font-family: 'Press Start 2P', cursive; margin: 0; overflow: hidden; font-size: 10px; }
+        
+        #main-wrapper { display: flex; width: 100vw; height: 100vh; transition: transform 0.3s ease; transform: translateX(0); }
+        .shifted { transform: translateX(220px) !important; } /* Сдвиг для открытия магазина */
 
-        body {
-            background-color: #1a1a1a;
-            color: #d3d3d3;
-            font-family: 'Press Start 2P', cursive;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            font-size: 10px;
-        }
+        /* Левая панель (Магазин) */
+        #shop-panel { width: 220px; background: #111; border-right: 4px solid #333; padding: 20px; box-sizing: border-box; position: absolute; left: -220px; height: 100vh; }
+        .shop-item { background: #222; border: 2px solid #444; padding: 10px; margin-bottom: 10px; text-align: center; border-radius: 5px; }
+        
+        /* Кнопка переключения магазина */
+        #shop-toggle { position: absolute; left: 10px; top: 10px; z-index: 100; background: #ff9800; border: none; padding: 10px; cursor: pointer; font-family: inherit; font-weight: bold; border-radius: 5px; }
 
-        #game-container {
-            background: #222;
-            border: 4px solid #333;
-            border-radius: 10px;
-            padding: 20px;
-            width: 900px;
-            display: flex;
-            gap: 20px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.9);
-        }
+        /* Игровое поле */
+        #game-container { display: flex; justify-content: center; align-items: center; width: 100vw; gap: 20px; }
+        .panel { background: #111; border: 2px solid #444; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .center-panel { width: 450px; text-align: center; }
 
-        .panel {
-            background: #111;
-            border: 2px solid #444;
-            border-radius: 8px;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .center-panel {
-            flex-grow: 1;
-            align-items: center;
-            position: relative;
-        }
-
-        input[type="text"] {
-            background: #000; border: 1px solid #555; color: #fff;
-            padding: 8px; font-family: 'Press Start 2P', cursive; font-size: 10px;
-        }
-
-        button {
-            color: white; border: 2px solid #1a3a16;
-            padding: 10px 15px; cursor: pointer;
-            font-family: 'Press Start 2P', cursive; font-size: 10px;
-            border-radius: 5px; transition: 0.2s;
-        }
+        button { color: white; border: 2px solid #1a3a16; padding: 10px; cursor: pointer; font-family: 'Press Start 2P', cursive; font-size: 10px; border-radius: 5px; background: #2d5a27; }
         button:disabled { background: #555 !important; border-color: #333 !important; cursor: not-allowed; }
-
-        .btn-green { background: #2d5a27; }
-        .btn-green:hover { background: #3e7a36; }
-        .btn-red { background: #8b0000; border-color: #4a0000; }
-        .btn-red:hover { background: #b22222; }
-
-        .music-section {
-            display: none; background: #1a1a1a; padding: 10px; border-radius: 5px;
-            text-align: center; border: 1px dashed #ffd700;
-        }
-        #audio-upload { display: none; }
-        .upload-label {
-            display: inline-block; background: #3f51b5; color: white;
-            padding: 8px; cursor: pointer; border-radius: 4px; margin-top: 10px;
-        }
-        .upload-label:hover { background: #5c6bc0; }
-
-        #nick-section { display: flex; gap: 10px; background: #1a1a1a; padding: 10px; border-radius: 5px; z-index: 10; }
-        #ostap-bonus {
-            display: none; text-align: center; background: rgba(40, 30, 10, 0.9);
-            border: 2px solid #ffd700; padding: 15px; border-radius: 8px;
-            color: #ffd700; line-height: 1.5; z-index: 10;
-        }
-        @keyframes ostapGlow {
-            0% { box-shadow: 0 0 5px #ffd700; transform: scale(1); }
-            50% { box-shadow: 0 0 25px #ffd700, inset 0 0 10px #ffd700; transform: scale(1.05); }
-            100% { box-shadow: 0 0 5px #ffd700; transform: scale(1); }
-        }
-        .legendary-animation { animation: ostapGlow 1.5s infinite; }
-
-        #fishing-area {
-            position: relative; flex-grow: 1; width: 100%;
-            background: linear-gradient(#1c2a38, #0f161c); border: 2px solid #444;
-            border-radius: 8px; margin-bottom: 15px; min-height: 250px;
-            overflow: hidden; display: flex; flex-direction: column;
-        }
-        #pond { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 1; }
-        .water {
-            position: absolute; bottom: 0; width: 100%; height: 55%;
-            background: linear-gradient(180deg, #183545 0%, #0c1a24 100%);
-            border-top: 2px solid #234d65; box-shadow: inset 0 10px 20px rgba(0,0,0,0.5);
-        }
-        .dock {
-            position: absolute; bottom: 0; left: 0; width: 150px; height: 60%;
-            background: #4e342e; border-right: 4px solid #261714;
-            border-top: 4px solid #6d4c41; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
-        }
-
-        .boombox {
-            position: absolute; bottom: 10px; left: 10px; width: 34px; height: 24px;
-            background: #222; border: 2px solid #ffd700; border-radius: 4px; z-index: 4;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.8); display: none;
-        }
-        .boombox::before, .boombox::after {
-            content: ''; position: absolute; width: 10px; height: 10px;
-            background: #ffd700; border-radius: 50%; top: 5px; border: 1px solid #444;
-        }
-        .boombox::before { left: 3px; }
-        .boombox::after { right: 3px; }
-        @keyframes bump { 0% { transform: scale(1); } 100% { transform: scale(1.08); } }
-        .boombox.playing { animation: bump 0.4s infinite alternate; }
-
-        .float {
-            position: absolute; width: 8px; height: 14px; background: #f44336;
-            border-radius: 5px; border: 1px solid #fff; bottom: 35%; left: 190px;
-            display: none; animation: bobbing 0.8s infinite alternate ease-in-out;
-        }
-        @keyframes bobbing { 0% { transform: translateY(0); } 100% { transform: translateY(-4px) rotate(5deg); } }
-
-        #player-character {
-            position: absolute; bottom: 45%; left: 60px; width: 50px; height: 60px; z-index: 3;
-        }
-        #player-character .head {
-            width: 24px; height: 24px; background: #ffcc99; position: absolute;
-            top: 0; left: 10px; border-radius: 4px; transition: all 0.5s;
-        }
-        #player-character .hair {
-            width: 26px; height: 10px; background: #5d4037; position: absolute;
-            top: -2px; left: 9px; border-radius: 4px 4px 0 0; transition: all 0.5s;
-        }
-        #player-character .body {
-            width: 30px; height: 36px; background: #37474f; position: absolute;
-            top: 24px; left: 7px; border-radius: 6px 6px 0 0; transition: all 0.5s;
-        }
-        #player-character .rod {
-            width: 120px; height: 2px; background: #d7ccc8; position: absolute;
-            top: 30px; left: 20px; transform: rotate(-25deg); transform-origin: left center;
-        }
-
-        .ostap-mode .head { background: #8d5524 !important; }
-        .ostap-mode .hair {
-            background: #111 !important; height: 22px !important; width: 28px !important;
-            left: 8px !important; border-radius: 6px 6px 2px 2px !important;
-        }
-        .ostap-mode .body { background: #0d0d0d !important; box-shadow: inset 0 3px 0 #ffd700; }
-
-        #fishing-ui { position: relative; z-index: 5; margin-top: 15px; text-align: center; width: 100%; }
-        #status-text { color: #fff; font-size: 14px; margin-bottom: 10px; height: 14px; text-shadow: 1px 1px 2px #000; }
-        #catch-result { font-size: 12px; height: 16px; text-shadow: 1px 1px 2px #000; margin-bottom: 10px; }
+        button:hover:not(:disabled) { background: #3e7a36; }
         
-        /* Круговая мини-игра */
-        #minigame-container {
-            display: none; width: 120px; height: 120px; margin: 0 auto 10px auto; position: relative;
-        }
-        #mg-canvas {
-            background: #111; border: 3px solid #555; border-radius: 50%; display: block; margin: 0 auto;
-        }
+        input { background: #000; border: 1px solid #555; color: #fff; padding: 8px; font-family: inherit; font-size: 10px; text-align: center; margin-bottom: 10px; width: 80%;}
 
-        .action-buttons { display: flex; gap: 15px; justify-content: center; z-index: 10; position: relative; }
-        #cast-btn { font-size: 14px; padding: 15px 30px; }
-        #hook-btn { font-size: 14px; padding: 15px 30px; display: none; }
-
-        .rarity-common { color: #aaaaaa; }
-        .rarity-uncommon { color: #4caf50; }
-        .rarity-rare { color: #2196f3; }
-        .rarity-epic { color: #9c27b0; }
-        .rarity-legendary { color: #ffeb3b; }
-        .score-box { font-size: 12px; color: #ffeb3b; text-align: center; }
-
-        #record-modal {
-            display: none; position: fixed; inset: 0; z-index: 100;
-            background: rgba(0,0,0,0.78); align-items: center; justify-content: center;
-        }
-        #record-modal.show { display: flex; }
-        .record-box {
-            width: min(430px, 85vw); padding: 28px; text-align: center;
-            background: #171717; border: 3px solid #ffd700; border-radius: 12px;
-            box-shadow: 0 0 35px rgba(255,215,0,0.35); animation: recordPop .25s ease-out;
-        }
-        .record-title { color: #ffd700; font-size: 18px; margin-bottom: 18px; }
-        .record-fish { font-size: 17px; color: #fff; margin-bottom: 12px; }
-        .record-weight { font-size: 25px; color: #4caf50; margin-bottom: 18px; }
-        @keyframes recordPop { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-        .fish-card {
-            background: #181818; border: 1px solid #333; border-radius: 6px;
-            padding: 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;
-        }
-        .fish-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-        .fish-weight { color: #fff; font-size: 9px; }
-        .release-btn {
-            padding: 5px 8px; font-size: 8px; background: #2d5a27;
-            border: 1px solid #1a3a16; color: #fff; border-radius: 4px; cursor: pointer;
-        }
-        .release-btn:hover { background: #3e7a36; }
-        .inventory-empty { color: #666; text-align: center; padding: 20px 5px; line-height: 1.6; }
-        #inventory-list { min-height: 220px; max-height: 280px; overflow-y: hidden; }
+        #fishing-area { position: relative; background: linear-gradient(#1c2a38, #0f161c); border: 2px solid #444; height: 250px; margin-bottom: 15px; overflow: hidden; }
+        .water { position: absolute; bottom: 0; width: 100%; height: 50%; background: #0c1a24; border-top: 2px solid #234d65; }
         
-        .pagination-controls {
-            display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 8px;
-        }
-        .page-btn { padding: 4px 8px; font-size: 8px; background: #333; border: 1px solid #555; }
-        .page-btn:hover { background: #444; }
+        /* Мини-игра (кликер кругов) */
+        #minigame-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(0,0,0,0.7); z-index: 10; }
+        .target-circle { position: absolute; background: #4caf50; border: 2px solid #fff; border-radius: 50%; cursor: pointer; }
+        
+        .rarity-common { color: #aaaaaa; } .rarity-uncommon { color: #4caf50; } .rarity-rare { color: #2196f3; } .rarity-epic { color: #9c27b0; } .rarity-legendary { color: #ffeb3b; }
+        
+        .fish-card { background: #181818; border: 1px solid #333; padding: 8px; margin-bottom: 5px; }
+        #inventory-list { max-height: 300px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div class="panel" style="width: 200px;">
-        <h3 style="color: #ff9800; margin: 0; text-align: center;">BUTT FISHING 🚬</h3><br>
-        <div class="score-box">БЫЧКИ: <br><br><span id="total-score">0</span></div><br>
-        <div class="score-box" style="color: #ffd700;">ЮАНИ: <br><br><span id="total-yuan">0</span> ¥</div><br>
-        <div style="color: #4caf50; text-align: center; font-size: 8px;">🍀 Удача: x<span id="luck-multiplier">1.00</span></div>
-        <hr style="width: 100%; border-color: #333; margin: 10px 0;">
+<button id="shop-toggle" onclick="toggleShop()">🛒 МАГАЗИН ❯</button>
+
+<div id="main-wrapper">
+    <!-- Левая панель (Магазин наживок) -->
+    <div id="shop-panel">
+        <h3 style="color: #ff9800; text-align: center;">НАЖИВКИ</h3>
+        <p style="font-size: 8px; color: #aaa; text-align: center;">Увеличивают размер круга при подсечке.</p>
         
-        <div id="music-panel" class="music-section">
-            <span style="font-size: 9px; color: #ffd700;">МАГНИТОФОН ОСТАПА</span><br>
-            <label class="upload-label">
-                Загрузить трек
-                <input type="file" id="audio-upload" accept="audio/*" onchange="loadMusic(event)">
-            </label>
-            <audio id="bg-music"></audio>
+        <div class="shop-item">
+            <div style="color: #4caf50;">Хлеб (+20%)</div>
+            <div style="font-size: 8px; margin: 10px 0;">50 ¥</div>
+            <button onclick="buyBait('bread')" style="padding: 5px; font-size: 8px;">КУПИТЬ</button>
         </div>
+        <div class="shop-item">
+            <div style="color: #2196f3;">Червяк (+50%)</div>
+            <div style="font-size: 8px; margin: 10px 0;">150 ¥</div>
+            <button onclick="buyBait('worm')" style="padding: 5px; font-size: 8px;">КУПИТЬ</button>
+        </div>
+        <div class="shop-item">
+            <div style="color: #9c27b0;">Опарыш (x2)</div>
+            <div style="font-size: 8px; margin: 10px 0;">500 ¥</div>
+            <button onclick="buyBait('premium')" style="padding: 5px; font-size: 8px;">КУПИТЬ</button>
+        </div>
+        <div id="active-bait-display" style="color: #ffd700; text-align: center; margin-top: 20px; font-size: 9px;">АКТИВНО: НЕТ</div>
     </div>
 
-    <div class="panel center-panel">
-        <div id="nick-section">
-            <input type="text" id="nick-input" placeholder="ВВЕДИ НИКНЕЙМ">
-            <button class="btn-green" id="nick-btn" onclick="checkNickname()">ГОТОВО</button>
+    <!-- Основная игра -->
+    <div id="game-container">
+        <!-- Статистика -->
+        <div class="panel" style="width: 200px; text-align: center;">
+            <h3 style="color: #ff9800; margin: 0;">BUTT FISHING</h3><br>
+            <div style="color: #fff;">БЫЧКИ: <br><br><span id="total-score">0</span></div><br>
+            <div style="color: #ffd700;">ЮАНИ: <br><br><span id="total-yuan">0</span> ¥</div>
         </div>
 
-        <div id="ostap-bonus">
-            ⭐ ИМЯ ЛЕГЕНДЫ! ⭐<br><br>Остап получает благословение помойки!<br><br><span style="color: #4caf50;">Удача +50%</span>
-        </div>
-
-        <div id="fishing-area">
-            <div id="pond">
-                <div class="water"></div>
-                <div class="dock">
-                    <div id="boombox" class="boombox"></div>
-                </div>
-                <div id="fishing-float" class="float"></div>
-                <div id="player-character">
-                    <div class="rod"></div>
-                    <div class="body"></div>
-                    <div class="head"></div>
-                    <div class="hair"></div>
-                </div>
+        <!-- Центральный экран -->
+        <div class="panel center-panel">
+            <div id="auth-section">
+                <input type="text" id="nick-input" placeholder="НИКНЕЙМ">
+                <button onclick="login()">ВОЙТИ</button>
             </div>
 
-            <div id="fishing-ui">
-                <div id="status-text">Тишина...</div>
-                <div id="catch-result"></div>
-                
-                <div id="minigame-container">
-                    <canvas id="mg-canvas" width="120" height="120"></canvas>
+            <div id="fishing-section" style="display: none;">
+                <div id="fishing-area">
+                    <div class="water"></div>
+                    <!-- Зона мини-игры -->
+                    <div id="minigame-area"></div>
                 </div>
+
+                <div id="status-text" style="margin-bottom: 10px; color: #fff;">ТИШИНА...</div>
+                <button id="cast-btn" onclick="castLine()">ЗАБРОСИТЬ 🎣</button>
             </div>
         </div>
 
-        <div class="action-buttons">
-            <button id="cast-btn" class="btn-green" onclick="castLine()">ЗАБРОСИТЬ 🎣</button>
-            <button id="hook-btn" class="btn-red" onclick="attemptCatch()">ПОДСЕЧЬ! ⚡</button>
+        <!-- Инвентарь -->
+        <div class="panel" style="width: 250px;">
+            <h3 style="margin: 0; text-align: center;">ИНВЕНТАРЬ</h3>
+            <button id="sell-all-btn" style="width: 100%; font-size: 8px; margin-bottom: 10px;" onclick="sellAllFish()">ПРОДАТЬ ВСЁ 💰</button>
+            <div id="inventory-list"></div>
         </div>
-    </div>
-
-    <div class="panel" style="width: 250px;">
-        <h3 style="margin: 0; text-align: center;">ТВОИ БЫЧКИ</h3>
-        <div style="font-size: 7px; color: #888; text-align: center; line-height: 1.5; margin: 5px 0;">
-            Грязный: 30–70г | б/у: 70–100г<br>
-            Чиловый: 50–80г | Золотой: 200–800г<br>
-            Лукбычок: 2-4кг
-        </div>
-        <button id="sell-all-btn" class="btn-green" style="width: 100%; font-size: 8px; padding: 6px; margin-bottom: 5px;" onclick="sellAllFish()">ПРОДАТЬ ВСЁ 💰</button>
-        <div id="inventory-list"></div>
-        <div class="pagination-controls">
-            <button class="page-btn" onclick="changePage(-1)">◄ НАЗАД</button>
-            <span id="page-indicator">СТР 1/1</span>
-            <button class="page-btn" onclick="changePage(1)">ВПЕРЕД ►</button>
-        </div>
-    </div>
-</div>
-
-<div id="record-modal">
-    <div class="record-box">
-        <div class="record-title">🏆 НОВЫЙ РЕКОРД! 🏆</div>
-        <div id="record-fish" class="record-fish"></div>
-        <div id="record-weight" class="record-weight"></div>
-        <div style="color:#aaa; font-size:9px; line-height:1.5; margin-bottom:18px;">
-            Ты поймал самого тяжёлого бычка этого типа!
-        </div>
-        <button class="btn-green" onclick="closeRecordModal()">ЗАБРАТЬ УЛОВ</button>
     </div>
 </div>
 
 <script>
-    let loadedTrackUrl = null;
-
-    function loadMusic(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const audioObj = document.getElementById('bg-music');
-            const boombox = document.getElementById('boombox');
-            loadedTrackUrl = URL.createObjectURL(file);
-            audioObj.src = loadedTrackUrl;
-            audioObj.loop = true;
-            audioObj.play();
-            boombox.classList.add('playing');
-        }
-    }
-
-    let totalScore = parseInt(localStorage.getItem('buttFishingScore')) || 0;
-    let totalYuan = parseFloat(localStorage.getItem('buttFishingYuan')) || 0;
-    let luckBonus = 1.0;
-
-    let fishSerial = parseInt(localStorage.getItem('buttFishingSerial')) || 0;
-    let inventory = JSON.parse(localStorage.getItem('buttFishingInventory')) || { dirty: [], used: [], chill: [], golden: [], look: [] };
+    let currentNick = localStorage.getItem('buttFishingNick') || null;
     
-    let currentInventoryPage = 1;
-    const itemsPerPage = 4;
+    // Переменные мини-игры
+    let mgClicksNeeded = 0;
+    let mgClicksDone = 0;
+    let mgTargetSize = 0;
+    let mgTimer = null;
 
-    let personalRecords = { dirty: 0, used: 0, chill: 0, golden: 0, look: 0 };
-    try {
-        const saved = JSON.parse(localStorage.getItem('buttFishingRecords'));
-        if (saved && typeof saved === 'object') {
-            personalRecords = { ...personalRecords, ...saved };
-        }
-    } catch (e) {}
-
-    function saveGame() {
-        localStorage.setItem('buttFishingScore', totalScore);
-        localStorage.setItem('buttFishingYuan', totalYuan);
-        localStorage.setItem('buttFishingSerial', fishSerial);
-        localStorage.setItem('buttFishingInventory', JSON.stringify(inventory));
+    if (currentNick) {
+        document.getElementById('nick-input').value = currentNick;
+        login();
     }
 
-    let isFishing = false;
-    let minigameActive = false;
-    let currentTargetItem = null;
-    let animationFrameId;
+    function toggleShop() {
+        const wrapper = document.getElementById('main-wrapper');
+        const btn = document.getElementById('shop-toggle');
+        wrapper.classList.toggle('shifted');
+        btn.innerText = wrapper.classList.contains('shifted') ? "❮ ЗАКРЫТЬ" : "🛒 МАГАЗИН ❯";
+    }
 
-    // Переменные для круговой мини-игры
-    let needleAngle = 0;
-    let needleSpeed = 0.02; // Скорость в 2 раза меньше
-    let greenSectors = [];
+    async function login() {
+        const nick = document.getElementById('nick-input').value.trim();
+        if (!nick) return;
+        currentNick = nick;
+        localStorage.setItem('buttFishingNick', nick);
+        
+        document.getElementById('auth-section').style.display = 'none';
+        document.getElementById('fishing-section').style.display = 'block';
+        await syncData();
+    }
 
-    document.getElementById('total-score').innerText = totalScore;
-    document.getElementById('total-yuan').innerText = totalYuan.toFixed(1);
-    updateInventoryUI();
+    async function req(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nick: currentNick, ...body })
+        });
+        return res.json();
+    }
 
-    function checkNickname() {
-        const nick = document.getElementById('nick-input').value.trim().toLowerCase();
-        if (nick === 'остап') {
-            document.getElementById('ostap-bonus').style.display = 'block';
-            document.getElementById('ostap-bonus').classList.add('legendary-animation');
-            document.getElementById('nick-section').style.display = 'none';
-            document.getElementById('player-character').classList.add('ostap-mode');
-            
-            document.getElementById('music-panel').style.display = 'block';
-            document.getElementById('boombox').style.display = 'block';
-            
-            luckBonus = 1.5;
-            document.getElementById('luck-multiplier').innerText = "1.50";
-            document.getElementById('luck-multiplier').style.color = "#ffd700";
+    async function syncData() {
+        const data = await req('/api/sync', {});
+        document.getElementById('total-yuan').innerText = parseFloat(data.yuan).toFixed(1);
+        document.getElementById('total-score').innerText = data.score;
+        document.getElementById('active-bait-display').innerText = data.activeBait ? `АКТИВНО: ${data.activeBait.toUpperCase()}` : "АКТИВНО: НЕТ";
+        renderInventory(data.inventory);
+    }
+
+    async function buyBait(baitId) {
+        const data = await req('/api/buy', { baitId });
+        if (data.success) {
+            syncData();
+        } else {
+            alert("Не хватает юаней!");
         }
     }
 
     async function castLine() {
-        if (isFishing) return;
-        isFishing = true;
-
-        const btnCast = document.getElementById('cast-btn');
+        const btn = document.getElementById('cast-btn');
         const status = document.getElementById('status-text');
-        const catchResult = document.getElementById('catch-result');
-        const floatObj = document.getElementById('fishing-float');
         
-        btnCast.disabled = true;
-        catchResult.innerText = "";
+        btn.disabled = true;
         status.innerText = "Ждем поклевку...";
-        status.style.color = "#aaaaaa";
-        floatObj.style.display = 'block';
-
-        const waitTime = 3000 + Math.random() * 6000;
+        status.style.color = "#aaa";
 
         setTimeout(async () => {
-            try {
-                const response = await fetch('/api/catch', { method: 'POST' });
-                currentTargetItem = await response.json();
-                startMinigame(currentTargetItem);
-            } catch (err) {
-                status.innerText = "Ошибка соединения с сервером!";
-                status.style.color = "#f44336";
-                isFishing = false;
-                btnCast.disabled = false;
-            }
-        }, waitTime);
+            const hookData = await req('/api/cast', {});
+            startMinigame(hookData);
+        }, 2000 + Math.random() * 4000);
     }
 
-    function formatWeight(weight) {
-        if (weight >= 1000) {
-            const kg = weight / 1000;
-            return `${kg.toFixed(kg % 1 === 0 ? 0 : 2)} кг`;
-        }
-        return `${weight} г`;
-    }
-
-    function startMinigame(item) {
-        minigameActive = true;
-        document.getElementById('status-text').innerText = `КЛЮЕТ (${item.displayName.toUpperCase()})! ПОДСЕКАЙ!`;
-        document.getElementById('status-text').style.color = "#ffeb3b";
-        
-        document.getElementById('cast-btn').style.display = 'none';
-        document.getElementById('hook-btn').style.display = 'block';
-        document.getElementById('minigame-container').style.display = 'block';
-
-        // Скорость в два раза меньше базовой с сервера
-        needleSpeed = (item.speed || 2) * 0.012; 
-        needleAngle = Math.random() * Math.PI * 2;
-
-        // Генерируем ровно 5 зеленых отсеков по кругу
-        greenSectors = [];
-        const sectorSize = 0.35; // Размер сектора в радианах (~20 градусов)
-        for (let i = 0; i < 5; i++) {
-            const startAngle = Math.random() * (Math.PI * 2 - sectorSize);
-            greenSectors.push({ start: startAngle, end: startAngle + sectorSize });
-        }
-
-        const canvas = document.getElementById('mg-canvas');
-        const ctx = canvas.getContext('2d');
-
-        function updateCircleMinigame() {
-            if (!minigameActive) return;
-
-            needleAngle += needleSpeed;
-            if (needleAngle > Math.PI * 2) needleAngle = 0;
-
-            // Отрисовка круга
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-            const radius = 45;
-
-            // Фон круга
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.fillStyle = '#222';
-            ctx.fill();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#444';
-            ctx.stroke();
-
-            // Рисуем 5 зеленых отсеков
-            ctx.lineWidth = 8;
-            greenSectors.forEach(sec => {
-                ctx.beginPath();
-                ctx.arc(cx, cy, radius - 4, sec.start, sec.end);
-                ctx.strokeStyle = '#4caf50';
-                ctx.stroke();
-            });
-
-            // Рисуем бегающую стрелку (указатель)
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            const nx = cx + Math.cos(needleAngle) * (radius - 6);
-            const ny = cy + Math.sin(needleAngle) * (radius - 6);
-            ctx.lineTo(nx, ny);
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#f44336';
-            ctx.stroke();
-
-            // Центральная точка
-            ctx.beginPath();
-            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-            ctx.fillStyle = '#fff';
-            ctx.fill();
-
-            animationFrameId = requestAnimationFrame(updateCircleMinigame);
-        }
-
-        updateCircleMinigame();
-    }
-
-    function attemptCatch() {
-        if (!minigameActive) return;
-        minigameActive = false;
-        cancelAnimationFrame(animationFrameId);
-
-        document.getElementById('cast-btn').style.display = 'block';
-        document.getElementById('hook-btn').style.display = 'none';
-        document.getElementById('minigame-container').style.display = 'none';
-        document.getElementById('fishing-float').style.display = 'none';
-        
-        const btnCast = document.getElementById('cast-btn');
+    function startMinigame(data) {
         const status = document.getElementById('status-text');
-        const catchResult = document.getElementById('catch-result');
+        const area = document.getElementById('minigame-area');
+        
+        status.innerText = "КЛЮЁТ! ЛОВИ КРУГИ!";
+        status.style.color = "#ffeb3b";
+        area.style.display = 'block';
 
-        // Нормализуем угол стрелки в диапазон [0, 2*PI]
-        let currentAngle = needleAngle % (Math.PI * 2);
-        if (currentAngle < 0) currentAngle += Math.PI * 2;
+        mgClicksNeeded = data.clicks;
+        mgClicksDone = 0;
+        mgTargetSize = data.size;
 
-        // Проверяем, попала ли стрелка в один из 5 зеленых отсеков
-        let success = false;
-        for (let sec of greenSectors) {
-            let start = sec.start % (Math.PI * 2);
-            let end = sec.end % (Math.PI * 2);
-            if (start <= end) {
-                if (currentAngle >= start && currentAngle <= end) { success = true; break; }
-            } else {
-                if (currentAngle >= start || currentAngle <= end) { success = true; break; }
-            }
-        }
+        // Таймер провала
+        mgTimer = setTimeout(() => {
+            failMinigame();
+        }, data.timeLimit);
 
-        if (success) {
-            status.innerText = "Удачная подсечка!";
-            status.style.color = "#4caf50";
-            processSuccessfulCatch(currentTargetItem);
-        } else {
-            status.innerText = "Сорвалось...";
-            status.style.color = "#f44336";
-            catchResult.innerText = "Бычок сорвался с крючка :(";
-            catchResult.className = "rarity-common";
-        }
-
-        setTimeout(() => {
-            isFishing = false;
-            btnCast.disabled = false;
-            if(!isFishing) {
-                status.innerText = "Тишина...";
-                status.style.color = "#fff";
-            }
-        }, 1500);
+        spawnCircle();
     }
 
-    function processSuccessfulCatch(caughtItem) {
-        totalScore += caughtItem.points;
+    function spawnCircle() {
+        const area = document.getElementById('minigame-area');
+        area.innerHTML = ''; // Очищаем старый круг
 
-        const caughtFish = {
-            uid: ++fishSerial,
-            id: caughtItem.id,
-            name: caughtItem.name,
-            displayName: caughtItem.displayName,
-            weight: caughtItem.weight,
-            price: caughtItem.price,
-            points: caughtItem.points,
-            class: caughtItem.class,
-            isTrophy: caughtItem.isTrophy
+        const circle = document.createElement('div');
+        circle.className = 'target-circle';
+        circle.style.width = mgTargetSize + 'px';
+        circle.style.height = mgTargetSize + 'px';
+        
+        // Случайная позиция внутри контейнера
+        const maxX = area.clientWidth - mgTargetSize;
+        const maxY = area.clientHeight - mgTargetSize;
+        circle.style.left = Math.floor(Math.random() * maxX) + 'px';
+        circle.style.top = Math.floor(Math.random() * maxY) + 'px';
+
+        // Нажатие по кругу
+        circle.onclick = (e) => {
+            e.stopPropagation();
+            mgClicksDone++;
+            if (mgClicksDone >= mgClicksNeeded) {
+                finishMinigame();
+            } else {
+                spawnCircle(); // Спавним следующий
+            }
         };
 
-        inventory[caughtItem.id].push(caughtFish);
-        document.getElementById('total-score').innerText = totalScore;
+        area.appendChild(circle);
+    }
 
-        const catchResult = document.getElementById('catch-result');
-        catchResult.innerText =
-            `Пойман: ${caughtItem.displayName} — ${formatWeight(caughtItem.weight)} (${caughtItem.price} ¥)`;
-        catchResult.className = caughtItem.class;
+    function failMinigame() {
+        clearTimeout(mgTimer);
+        document.getElementById('minigame-area').style.display = 'none';
+        document.getElementById('minigame-area').innerHTML = '';
+        
+        const status = document.getElementById('status-text');
+        status.innerText = "Сорвалось...";
+        status.style.color = "#f44336";
+        document.getElementById('cast-btn').disabled = false;
+    }
 
-        saveGame();
-        updateInventoryUI();
+    async function finishMinigame() {
+        clearTimeout(mgTimer);
+        document.getElementById('minigame-area').style.display = 'none';
+        document.getElementById('minigame-area').innerHTML = '';
 
-        if (caughtItem.weight > (personalRecords[caughtItem.id] || 0)) {
-            personalRecords[caughtItem.id] = caughtItem.weight;
-            try {
-                localStorage.setItem('buttFishingRecords', JSON.stringify(personalRecords));
-            } catch (e) {}
-
-            showRecordModal(caughtItem, caughtFish.weight);
+        const data = await req('/api/catch', {});
+        const status = document.getElementById('status-text');
+        
+        if (data.success) {
+            status.innerHTML = `<span class="${data.fish.class}">ПОЙМАН: ${data.fish.displayName}</span>`;
+            syncData(); // Обновляем данные с сервера
+        } else {
+            status.innerText = data.reason;
+            status.style.color = "#f44336";
         }
+        document.getElementById('cast-btn').disabled = false;
     }
 
-    function showRecordModal(item, weight) {
-        document.getElementById('record-fish').innerText = item.displayName.toUpperCase();
-        document.getElementById('record-weight').innerText = formatWeight(weight);
-        document.getElementById('record-modal').classList.add('show');
+    async function sellAllFish() {
+        await req('/api/sellAll', {});
+        syncData();
     }
 
-    function closeRecordModal() {
-        document.getElementById('record-modal').classList.remove('show');
-    }
-
-    function sellFish(uid) {
-        let foundIndex = -1;
-        let foundType = null;
-        for (let r of Object.keys(inventory)) {
-            let idx = inventory[r].findIndex(f => f.uid === uid);
-            if (idx !== -1) {
-                foundIndex = idx;
-                foundType = r;
-                break;
-            }
-        }
-        if (foundIndex === -1) return;
-
-        const fish = inventory[foundType][foundIndex];
-        totalYuan += fish.price;
-        inventory[foundType].splice(foundIndex, 1);
-        
-        document.getElementById('total-yuan').innerText = totalYuan.toFixed(1);
-        saveGame();
-        updateInventoryUI();
-
-        const catchResult = document.getElementById('catch-result');
-        catchResult.innerText = `Продан ${fish.displayName} за ${fish.price} ¥!`;
-        catchResult.className = 'rarity-uncommon';
-    }
-
-    function sellAllFish() {
-        let earned = 0;
-        Object.keys(inventory).forEach(r => {
-            inventory[r].forEach(fish => {
-                earned += fish.price;
-            });
-            inventory[r] = [];
-        });
-        if (earned === 0) return;
-
-        totalYuan += earned;
-        document.getElementById('total-yuan').innerText = totalYuan.toFixed(1);
-        saveGame();
-        currentInventoryPage = 1;
-        updateInventoryUI();
-
-        const catchResult = document.getElementById('catch-result');
-        catchResult.innerText = `Продано бычков на ${earned.toFixed(1)} ¥!`;
-        catchResult.className = 'rarity-uncommon';
-    }
-
-    function changePage(direction) {
-        const allFish = [];
-        Object.keys(inventory).forEach(r => {
-            inventory[r].forEach(fish => allFish.push(fish));
-        });
-        const totalPages = Math.ceil(allFish.length / itemsPerPage) || 1;
-        
-        currentInventoryPage += direction;
-        if (currentInventoryPage < 1) currentInventoryPage = 1;
-        if (currentInventoryPage > totalPages) currentInventoryPage = totalPages;
-        
-        updateInventoryUI();
-    }
-
-    function updateInventoryUI() {
+    function renderInventory(inv) {
         const list = document.getElementById('inventory-list');
         list.innerHTML = "";
-
-        const allFish = [];
-        Object.keys(inventory).forEach(r => {
-            inventory[r].forEach(fish => allFish.push(fish));
-        });
-
-        const totalPages = Math.ceil(allFish.length / itemsPerPage) || 1;
-        if (currentInventoryPage > totalPages) currentInventoryPage = totalPages;
-
-        document.getElementById('page-indicator').innerText = `СТР ${currentInventoryPage}/${totalPages}`;
-
-        if (allFish.length === 0) {
-            list.innerHTML = '<div class="inventory-empty">Пока пусто...<br>Поймай своего первого бычка!</div>';
+        
+        if (inv.length === 0) {
+            list.innerHTML = "<div style='text-align:center; color:#666;'>Пусто</div>";
             return;
         }
 
-        const startIdx = (currentInventoryPage - 1) * itemsPerPage;
-        const pageFish = allFish.slice(startIdx, startIdx + itemsPerPage);
-
-        pageFish.forEach(fish => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'fish-card';
-            itemDiv.innerHTML = `
-                <div class="fish-card-top">
+        inv.forEach(fish => {
+            const div = document.createElement('div');
+            div.className = 'fish-card';
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; font-size:8px;">
                     <span class="${fish.class}">${fish.displayName}</span>
-                    <span class="fish-weight">${formatWeight(fish.weight)}</span>
+                    <span style="color:white;">${fish.weight >= 1000 ? (fish.weight/1000).toFixed(2)+' кг' : fish.weight+' г'}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #ffd700; font-size: 8px;">${fish.price} ¥</span>
-                    <button class="release-btn" onclick="sellFish(${fish.uid})">ПРОДАТЬ</button>
-                </div>
+                <div style="color:#ffd700; font-size:8px; margin-top:5px;">${fish.price} ¥</div>
             `;
-            list.appendChild(itemDiv);
+            list.appendChild(div);
         });
     }
 </script>

@@ -1,54 +1,115 @@
-const express = require("express");
-const path = require("path");
+const express = require('express');
 const app = express();
+const path = require('path');
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
-const rarities = [
-    { id: 'dirty', name: 'Грязный бычок', chance: 38, minWeight: 30, maxWeight: 70, trophyMin: 100, points: 1, class: 'rarity-common', targetSize: 100, speed: 2 },
-    { id: 'used', name: 'б/у бычок', chance: 30, minWeight: 70, maxWeight: 100, trophyMin: 150, points: 2, class: 'rarity-uncommon', targetSize: 85, speed: 2.3 },
-    { id: 'chill', name: 'Чиловый бычок', chance: 20, minWeight: 50, maxWeight: 80, trophyMin: 100, points: 3, class: 'rarity-rare', targetSize: 75, speed: 2.6 },
-    { id: 'golden', name: 'Золотой бычок', chance: 9, minWeight: 200, maxWeight: 800, trophyMin: 1000, points: 10, class: 'rarity-epic', targetSize: 55, speed: 3.2 },
-    { id: 'look', name: 'Лукбычок', chance: 3, minWeight: 2000, maxWeight: 4000, trophyMin: 5000, points: 25, class: 'rarity-legendary', targetSize: 40, speed: 4.0 }
+// База данных в оперативной памяти (при перезапуске сервера сбросится)
+const players = {};
+
+const FISH_TYPES = [
+    { id: 'dirty', displayName: 'ГРЯЗНЫЙ БЫЧОК 🚬', weightRange: [30, 70], priceMultiplier: 0.5, class: 'rarity-common', probability: 0.4, minigame: { clicks: 3, size: 60, time: 3000 } },
+    { id: 'used', displayName: 'Б/У БЫЧОК 👟', weightRange: [70, 100], priceMultiplier: 0.8, class: 'rarity-uncommon', probability: 0.3, minigame: { clicks: 3, size: 50, time: 2500 } },
+    { id: 'chill', displayName: 'ЧИЛОВЫЙ БЫЧОК 😎', weightRange: [50, 80], priceMultiplier: 1.5, class: 'rarity-rare', probability: 0.15, minigame: { clicks: 4, size: 40, time: 2000 } },
+    { id: 'golden', displayName: 'ЗОЛОТОЙ БЫЧОК ✨', weightRange: [200, 800], priceMultiplier: 5.0, class: 'rarity-epic', probability: 0.1, minigame: { clicks: 4, size: 30, time: 1800 } },
+    { id: 'look', displayName: 'ЛУКБЫЧОК 🌱', weightRange: [2000, 4000], priceMultiplier: 15.0, class: 'rarity-legendary', isTrophy: true, probability: 0.05, minigame: { clicks: 5, size: 20, time: 1500 } }
 ];
 
-app.post("/api/catch", (req, res) => {
-    let roll = Math.random() * 100;
-    let caughtItem = rarities[0];
+const SHOP_BAITS = {
+    'bread': { name: 'Хлеб', price: 50, sizeMultiplier: 1.2 },
+    'worm': { name: 'Червяк', price: 150, sizeMultiplier: 1.5 },
+    'premium': { name: 'Опарыш', price: 500, sizeMultiplier: 2.0 }
+};
 
-    for (let i = 0; i < rarities.length; i++) {
-        if (roll < rarities[i].chance) {
-            caughtItem = rarities[i];
-            break;
-        }
-        roll -= rarities[i].chance;
+function getPlayer(nick) {
+    if (!players[nick]) {
+        players[nick] = { yuan: 0, score: 0, inventory: [], activeBait: null, currentHook: null };
+    }
+    return players[nick];
+}
+
+// Получить статус игрока
+app.post('/api/sync', (req, res) => {
+    const p = getPlayer(req.body.nick);
+    res.json({ yuan: p.yuan, score: p.score, inventory: p.inventory, activeBait: p.activeBait });
+});
+
+// Заброс удочки
+app.post('/api/cast', (req, res) => {
+    const p = getPlayer(req.body.nick);
+    
+    let rand = Math.random();
+    // Бонус Остапа
+    if (req.body.nick.toLowerCase() === 'остап') rand -= 0.15; 
+    
+    let selectedType = FISH_TYPES[0];
+    let cumulative = 0;
+    for (let fish of FISH_TYPES) {
+        cumulative += fish.probability;
+        if (rand <= cumulative) { selectedType = fish; break; }
     }
 
-    const isTrophy = Math.random() < 0.10;
-    let weight = isTrophy 
-        ? Math.round(caughtItem.trophyMin + Math.random() * (caughtItem.trophyMin * 0.3))
-        : Math.round(caughtItem.minWeight + Math.random() * (caughtItem.maxWeight - caughtItem.minWeight));
+    const weight = Math.floor(Math.random() * (selectedType.weightRange[1] - selectedType.weightRange[0] + 1)) + selectedType.weightRange[0];
+    const price = parseFloat((weight * selectedType.priceMultiplier * 0.1).toFixed(1));
 
-    // 100 гр = 1 юань, трофейные 100 гр = 2 юаня
-    const pricePer100g = isTrophy ? 2 : 1;
-    const price = Math.round((weight / 100) * pricePer100g * 10) / 10;
+    let size = selectedType.minigame.size;
+    if (p.activeBait) {
+        size = Math.floor(size * SHOP_BAITS[p.activeBait].sizeMultiplier);
+        p.activeBait = null; // Наживка тратится
+    }
 
-    res.json({
-        id: caughtItem.id,
-        name: caughtItem.name,
-        displayName: isTrophy ? `🏆 ${caughtItem.name}` : caughtItem.name,
-        weight: weight,
-        price: price,
-        points: caughtItem.points,
-        class: caughtItem.class,
-        isTrophy: isTrophy,
-        targetSize: caughtItem.targetSize,
-        speed: caughtItem.speed
-    });
+    p.currentHook = {
+        fish: { id: selectedType.id, displayName: selectedType.displayName, weight, price, class: selectedType.class, uid: Date.now() },
+        clicksRequired: selectedType.minigame.clicks,
+        timeLimit: selectedType.minigame.time,
+        castTime: Date.now()
+    };
+
+    res.json({ clicks: p.currentHook.clicksRequired, size, timeLimit: p.currentHook.timeLimit });
+});
+
+// Проверка улова
+app.post('/api/catch', (req, res) => {
+    const p = getPlayer(req.body.nick);
+    if (!p.currentHook) return res.status(400).json({ error: "Не клюет!" });
+
+    const timeTaken = Date.now() - p.currentHook.castTime;
+    
+    // Защита от автокликеров (сделал слишком быстро или не уложился во время)
+    if (timeTaken > p.currentHook.timeLimit + 2000 || timeTaken < 100) {
+        p.currentHook = null;
+        return res.json({ success: false, reason: "Сорвалось или чит!" });
+    }
+
+    const caughtFish = p.currentHook.fish;
+    p.inventory.push(caughtFish);
+    p.score += 1;
+    p.currentHook = null;
+
+    res.json({ success: true, fish: caughtFish });
+});
+
+// Покупка наживки
+app.post('/api/buy', (req, res) => {
+    const p = getPlayer(req.body.nick);
+    const bait = SHOP_BAITS[req.body.baitId];
+    if (!bait || p.yuan < bait.price) return res.json({ success: false });
+
+    p.yuan -= bait.price;
+    p.activeBait = req.body.baitId;
+    res.json({ success: true, yuan: p.yuan });
+});
+
+// Продажа всей рыбы
+app.post('/api/sellAll', (req, res) => {
+    const p = getPlayer(req.body.nick);
+    let earned = 0;
+    p.inventory.forEach(f => earned += f.price);
+    p.yuan += earned;
+    p.inventory = [];
+    res.json({ success: true, earned, yuan: p.yuan });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log("Сервер запущен на порту " + PORT);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
