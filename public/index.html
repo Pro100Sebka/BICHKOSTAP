@@ -13,12 +13,12 @@
         }
 
         #main-wrapper { display: flex; width: 100vw; height: 100vh; transition: transform 0.3s ease; }
-        .shifted { transform: translateX(250px) !important; }
+        .shifted { transform: translateX(260px) !important; }
 
         #shop-panel {
-            width: 250px; background: #111; border-right: 4px solid #333;
-            padding: 15px; box-sizing: border-box; position: absolute;
-            left: -250px; height: 100vh; overflow-y: auto; z-index: 90;
+            width: 260px; background: #111; border-right: 4px solid #333;
+            padding: 12px; box-sizing: border-box; position: absolute;
+            left: -260px; height: 100vh; overflow-y: auto; z-index: 90;
         }
         .shop-item {
             background: #222; border: 2px solid #444; padding: 10px;
@@ -36,7 +36,30 @@
         button:disabled { background: #555 !important; border-color: #333 !important; cursor: not-allowed; }
         button:hover:not(:disabled) { background: #3e7a36; }
 
-        input, select { background: #000; border: 1px solid #555; color: #fff; padding: 8px; font-family: inherit; font-size: 9px; text-align: center; margin-bottom: 8px; width: 80%; border-radius: 4px; }
+        input[type="text"], input[type="password"], select {
+            background: #000; border: 1px solid #555; color: #fff; padding: 8px;
+            font-family: inherit; font-size: 9px; text-align: center; margin-bottom: 8px; width: 80%; border-radius: 4px;
+        }
+
+        input[type="range"] {
+            width: 90%; margin: 8px 0; cursor: pointer; accent-color: #ff9800;
+        }
+
+        #hunger-container {
+            width: 100%; background: #222; border: 2px solid #444; border-radius: 5px;
+            padding: 4px; box-sizing: border-box; margin-bottom: 8px;
+        }
+        #hunger-bar-bg {
+            width: 100%; height: 16px; background: #000; border-radius: 3px; position: relative; overflow: hidden;
+        }
+        #hunger-bar-fill {
+            height: 100%; width: 100%; background: linear-gradient(90deg, #e53935, #ff9800, #4caf50);
+            transition: width 0.3s ease;
+        }
+        #hunger-text {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 8px; color: #fff; text-shadow: 1px 1px 2px #000;
+        }
 
         #fishing-area {
             position: relative; background: linear-gradient(#1c2a38, #0f161c);
@@ -53,7 +76,6 @@
         #player-character .body { width: 28px; height: 34px; background: #37474f; position: absolute; top: 22px; left: 7px; border-radius: 5px; }
         #player-character .rod { width: 110px; height: 2px; background: #d7ccc8; position: absolute; top: 28px; left: 18px; transform: rotate(-25deg); transform-origin: left center; }
 
-        /* Модалка мини-игры */
         #minigame-modal {
             position: absolute; inset: 0; background: rgba(0, 0, 0, 0.92);
             z-index: 50; display: none; flex-direction: column;
@@ -81,29 +103,53 @@
 
 <div id="main-wrapper">
     <div id="shop-panel">
-        <h3 style="color: #ff9800; text-align: center; margin-top: 0;">НАЖИВКИ</h3>
+        <h3 style="color: #ff9800; text-align: center; margin: 0 0 10px 0;">МАГАЗИН</h3>
+        
+        <div style="color: #888; font-size: 8px; margin-bottom: 6px; text-align: center;">--- НАЖИВКИ ---</div>
         <div class="shop-item">
             <div style="color: #4caf50;">Хлеб (+25% зона)</div>
-            <div style="font-size: 8px; margin: 6px 0;">50 ¥</div>
+            <div style="font-size: 8px; margin: 4px 0;">50 ¥</div>
             <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-bread">0</span></div>
             <button onclick="buyBait('bread')">КУПИТЬ</button>
             <button id="btn-equip-bread" onclick="equipBait('bread')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
         </div>
         <div class="shop-item">
             <div style="color: #2196f3;">Червяк (+50% зона)</div>
-            <div style="font-size: 8px; margin: 6px 0;">150 ¥</div>
+            <div style="font-size: 8px; margin: 4px 0;">150 ¥</div>
             <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-worm">0</span></div>
             <button onclick="buyBait('worm')">КУПИТЬ</button>
             <button id="btn-equip-worm" onclick="equipBait('worm')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
         </div>
         <div class="shop-item">
             <div style="color: #9c27b0;">Опарыш (x2 зона)</div>
-            <div style="font-size: 8px; margin: 6px 0;">500 ¥</div>
+            <div style="font-size: 8px; margin: 4px 0;">500 ¥</div>
             <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-premium">0</span></div>
             <button onclick="buyBait('premium')">КУПИТЬ</button>
             <button id="btn-equip-premium" onclick="equipBait('premium')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
         </div>
-        <button onclick="equipBait(null)" style="width:100%; background:#888; font-size:7px;">СНЯТЬ НАЖИВКУ</button>
+        <button onclick="equipBait(null)" style="width:100%; background:#888; font-size:7px; margin-bottom:15px;">СНЯТЬ НАЖИВКУ</button>
+
+        <div style="color: #888; font-size: 8px; margin-bottom: 6px; text-align: center;">--- ЕДА ---</div>
+        
+        <div class="shop-item">
+            <div style="color: #ff9800;">Снек (+20 еды)</div>
+            <div style="font-size: 7px; color: #aaa; margin-top: 4px;">1 шт = 15 ¥</div>
+            <input type="range" id="slider-snack" min="1" max="10" value="1" oninput="updateFoodUI('snack', 15)">
+            <div style="font-size: 8px; margin-bottom: 6px;">
+                К-во: <span id="qty-snack">1</span> (<span id="total-snack">15</span> ¥)
+            </div>
+            <button onclick="buyFood('snack')">КУПИТЬ</button>
+        </div>
+
+        <div class="shop-item">
+            <div style="color: #ff5722;">Сытный обед (+50 еды)</div>
+            <div style="font-size: 7px; color: #aaa; margin-top: 4px;">1 шт = 40 ¥</div>
+            <input type="range" id="slider-meal" min="1" max="10" value="1" oninput="updateFoodUI('meal', 40)">
+            <div style="font-size: 8px; margin-bottom: 6px;">
+                К-во: <span id="qty-meal">1</span> (<span id="total-meal">40</span> ¥)
+            </div>
+            <button onclick="buyFood('meal')">КУПИТЬ</button>
+        </div>
     </div>
 
     <div id="game-container">
@@ -127,7 +173,7 @@
                 
                 <label style="font-size: 8px; color: #aaa;">ПОЗЫВНОЙ:</label><br>
                 <select id="callsign-input">
-                    <option value="ОСТАП">ОСТАП (Удача +30% зона, +10% редкая)</option>
+                    <option value="ОСТАП">ОСТАП (Удача +30% зона, +30% редкая)</option>
                     <option value="КОЧ">КОЧ (Узкоглазый -20% скор.)</option>
                     <option value="СЕМКА">СЕМКА (Жадина +15% продажа)</option>
                     <option value="ПАША" selected>ПАША (Рускый хакер +15% зона)</option>
@@ -137,6 +183,13 @@
             </div>
 
             <div id="fishing-section" style="display: none;">
+                <div id="hunger-container">
+                    <div id="hunger-bar-bg">
+                        <div id="hunger-bar-fill"></div>
+                        <div id="hunger-text">СЫТОСТЬ: 100 / 100</div>
+                    </div>
+                </div>
+
                 <div id="callsign-display" style="color: #ffd700; font-size: 8px; margin-bottom: 8px;">ПОЗЫВНОЙ: -</div>
                 
                 <div id="fishing-area">
@@ -149,7 +202,6 @@
                     </div>
                     <div id="fishing-float" class="float"></div>
 
-                    <!-- Модалка с циферблатом -->
                     <div id="minigame-modal">
                         <div style="color:#ff9800; font-size:8px; margin-bottom:8px;">ПОДСЕКАЙ В ЗЕЛЕНОЙ ЗОНЕ (5 РАЗ)!</div>
                         <canvas id="clock-canvas" width="260" height="260"></canvas>
@@ -189,6 +241,7 @@
     let mgHitsDone = 0;
     let mgClickTimestamps = [];
     let mgAnimId = null;
+    let lastFrameTime = performance.now(); // Переменная для тайминга независимой скорости (Delta Time)
 
     if (currentNick && sessionToken) {
         syncData();
@@ -198,6 +251,12 @@
         const wrapper = document.getElementById('main-wrapper');
         wrapper.classList.toggle('shifted');
         document.getElementById('shop-toggle').innerText = wrapper.classList.contains('shifted') ? "❮ ЗАКРЫТЬ" : "🛒 МАГАЗИН ❯";
+    }
+
+    function updateFoodUI(foodId, basePrice) {
+        const qty = document.getElementById(`slider-${foodId}`).value;
+        document.getElementById(`qty-${foodId}`).innerText = qty;
+        document.getElementById(`total-${foodId}`).innerText = qty * basePrice;
     }
 
     async function req(url, body) {
@@ -240,6 +299,10 @@
         document.getElementById('total-yuan').innerText = parseFloat(data.yuan).toFixed(2);
         document.getElementById('total-score').innerText = data.score;
         document.getElementById('callsign-display').innerText = `ПОЗЫВНОЙ: ${data.callsign} (${data.callsignBonus})`;
+
+        const hungerVal = data.hunger !== undefined ? data.hunger : 100;
+        document.getElementById('hunger-bar-fill').style.width = `${hungerVal}%`;
+        document.getElementById('hunger-text').innerText = `СЫТОСТЬ: ${hungerVal} / 100`;
 
         if (data.warnings > 0) {
             document.getElementById('warning-badge').style.display = 'block';
@@ -290,14 +353,34 @@
         else alert(data.error);
     }
 
+    async function buyFood(foodId) {
+        const amount = document.getElementById(`slider-${foodId}`).value;
+        const data = await req('/api/buyFood', { foodId, amount });
+        if (data.success) {
+            syncData();
+        } else {
+            alert(data.error);
+        }
+    }
+
     async function castLine() {
         const btn = document.getElementById('cast-btn');
         btn.disabled = true;
+
+        const hookData = await req('/api/cast', {});
+        if (!hookData.success) {
+            alert(hookData.error);
+            btn.disabled = false;
+            return;
+        }
+
+        document.getElementById('hunger-bar-fill').style.width = `${hookData.hunger}%`;
+        document.getElementById('hunger-text').innerText = `СЫТОСТЬ: ${hookData.hunger} / 100`;
+
         document.getElementById('fishing-float').style.display = 'block';
         document.getElementById('status-text').innerText = "Ждем поклевку...";
 
-        setTimeout(async () => {
-            const hookData = await req('/api/cast', {});
+        setTimeout(() => {
             startClockMinigame(hookData);
         }, 1500 + Math.random() * 2500);
     }
@@ -312,6 +395,7 @@
         mgHitsDone = 0;
         mgClickTimestamps = [];
         mgAngle = 0;
+        lastFrameTime = performance.now(); // Сброс таймера для независимой скорости
 
         document.getElementById('mg-counter').innerText = `ПОПАДАНИЙ: 0 / 5`;
         
@@ -329,13 +413,17 @@
         const cy = canvas.height / 2;
         const radius = 100;
 
-        mgAngle = (mgAngle + mgSpeed * 2.2) % 360;
+        // Фикс скорости (Delta Time): рассчитываем реальное время между кадрами
+        const now = performance.now();
+        const dt = (now - lastFrameTime) / 1000;
+        lastFrameTime = now;
 
-        // Полная очистка с заливкой непрозрачного фона
+        // Базовая скорость: 180 градусов в секунду * множитель рыбы
+        mgAngle = (mgAngle + 180 * mgSpeed * dt) % 360;
+
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 1. Шкала и засечки (Циферблат)
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
         ctx.fillStyle = '#141c14';
@@ -359,7 +447,6 @@
             ctx.stroke();
         }
 
-        // 2. Зеленая зона (Яркий сектор)
         const radStart = (mgZoneStart - 90) * Math.PI / 180;
         const radEnd = (mgZoneStart + mgZoneSize - 90) * Math.PI / 180;
 
@@ -373,7 +460,6 @@
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // 3. Вращающаяся яркая красная стрелка
         const arrowRad = (mgAngle - 90) * Math.PI / 180;
         const arrowX = cx + (radius - 8) * Math.cos(arrowRad);
         const arrowY = cy + (radius - 8) * Math.sin(arrowRad);
@@ -385,13 +471,11 @@
         ctx.lineWidth = 5;
         ctx.stroke();
 
-        // Маркер на конце стрелки
         ctx.beginPath();
         ctx.arc(arrowX, arrowY, 6, 0, 2 * Math.PI);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
 
-        // Центральный пин
         ctx.beginPath();
         ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
         ctx.fillStyle = '#ff9800';
@@ -418,6 +502,9 @@
 
             if (mgHitsDone >= 5) {
                 finishMinigame();
+            } else {
+                // Перемещение зеленой зоны в случайную позицию после каждого попадания
+                mgZoneStart = Math.floor(Math.random() * (360 - mgZoneSize));
             }
         } else {
             failMinigame();
@@ -486,7 +573,7 @@
             row.innerHTML = `
                 <div>
                     <strong>${p.nick}</strong> [${p.callsign}] ${p.isAdmin ? '👑' : ''}<br>
-                    Предупреждений: ${p.warnings}
+                    Еда: ${p.hunger}% | Предупреждений: ${p.warnings}
                 </div>
                 <div>
                     Юани: <input type="number" id="adm-yuan-${p.nick}" class="admin-input" value="${p.yuan}">

@@ -12,6 +12,7 @@ const players = {
         isAdmin: true,
         yuan: 1000,
         score: 0,
+        hunger: 100,
         inventory: [],
         baits: { bread: 3, worm: 0, premium: 0 },
         activeBait: null,
@@ -22,7 +23,7 @@ const players = {
 };
 
 const CALLSIGNS = {
-    'ОСТАП': { name: 'ОСТАП', bonusText: 'Удача (+30% зеленая зона, +10% редкая рыба)', zoneMod: 1.3, rareMod: 0.3, sellMod: 1.0 },
+    'ОСТАП': { name: 'ОСТАП', bonusText: 'Удача (+30% зеленая зона, +30% редкая рыба)', zoneMod: 1.3, rareMod: 0.3, sellMod: 1.0 },
     'КОЧ': { name: 'КОЧ', bonusText: 'Узкоглазый (-20% скорость вращения стрелки)', zoneMod: 1.0, rareMod: 0.0, speedMod: 0.8, sellMod: 1.0 },
     'СЕМКА': { name: 'СЕМКА', bonusText: 'Жадина (+15% к стоимости продажи)', zoneMod: 1.0, rareMod: 0.0, sellMod: 1.15 },
     'ПАША': { name: 'ПАША', bonusText: 'Рускый хакер (+15% зеленая зона)', zoneMod: 1.15, rareMod: 0.0, sellMod: 1.0 }
@@ -40,6 +41,11 @@ const SHOP_BAITS = {
     'bread': { name: 'Хлеб', price: 50, zoneMultiplier: 1.25 },
     'worm': { name: 'Червяк', price: 150, zoneMultiplier: 1.5 },
     'premium': { name: 'Опарыш', price: 500, zoneMultiplier: 2.0 }
+};
+
+const SHOP_FOOD = {
+    'snack': { name: 'Снек', price: 15, restore: 20 },
+    'meal': { name: 'Сытный обед', price: 40, restore: 50 }
 };
 
 function calculatePrice(weight, isTrophy) {
@@ -66,6 +72,7 @@ app.post('/api/login', (req, res) => {
             isAdmin: false,
             yuan: 0,
             score: 0,
+            hunger: 100,
             inventory: [],
             baits: { bread: 0, worm: 0, premium: 0 },
             activeBait: null,
@@ -90,6 +97,7 @@ app.post('/api/login', (req, res) => {
         isAdmin: !!p.isAdmin,
         yuan: p.yuan,
         score: p.score,
+        hunger: p.hunger,
         inventory: p.inventory,
         baits: p.baits,
         activeBait: p.activeBait,
@@ -104,6 +112,7 @@ app.post('/api/sync', (req, res) => {
     res.json({
         yuan: p.yuan,
         score: p.score,
+        hunger: p.hunger,
         inventory: p.inventory,
         baits: p.baits,
         activeBait: p.activeBait,
@@ -143,9 +152,34 @@ app.post('/api/equipBait', (req, res) => {
     res.json({ success: true, activeBait: p.activeBait });
 });
 
+app.post('/api/buyFood', (req, res) => {
+    const p = authByToken(req.body.nick, req.body.token);
+    if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
+
+    const { foodId, amount } = req.body;
+    const food = SHOP_FOOD[foodId];
+    const qty = parseInt(amount) || 1;
+
+    if (!food || qty <= 0) return res.json({ success: false, error: 'Неверные данные' });
+
+    const totalPrice = food.price * qty;
+    if (p.yuan < totalPrice) return res.json({ success: false, error: 'Недостаточно юаней!' });
+
+    p.yuan = parseFloat((p.yuan - totalPrice).toFixed(2));
+    p.hunger = Math.min(100, p.hunger + (food.restore * qty));
+
+    res.json({ success: true, yuan: p.yuan, hunger: p.hunger });
+});
+
 app.post('/api/cast', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Авторизуйтесь!' });
+
+    if (p.hunger < 5) {
+        return res.json({ success: false, error: 'Вы слишком голодны! Купите еду в магазине.' });
+    }
+
+    p.hunger = Math.max(0, p.hunger - 5);
 
     const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ПАША'];
 
@@ -171,7 +205,6 @@ app.post('/api/cast', (req, res) => {
         }
     }
 
-    // Безопасный расчет параметров зоны
     zoneDegree = Math.min(320, Math.max(15, zoneDegree));
     const startAngle = Math.floor(Math.random() * (360 - zoneDegree));
 
@@ -191,10 +224,12 @@ app.post('/api/cast', (req, res) => {
     };
 
     res.json({
+        success: true,
         zoneStart: p.currentHook.zoneStart,
         zoneSize: p.currentHook.zoneSize,
         speed: p.currentHook.speed,
         requiredHits: 5,
+        hunger: p.hunger,
         baits: p.baits,
         activeBait: p.activeBait
     });
@@ -230,19 +265,21 @@ app.post('/api/catch', (req, res) => {
         if (p.warnings >= 2) {
             const oldYuan = p.yuan;
             p.yuan = parseFloat((p.yuan * 0.5).toFixed(2));
+            p.inventory = []; // ШТРАФ: Удаление всей рыбы из инвентаря
             p.warnings = 0;
             return res.json({
                 success: false,
                 penalty: true,
                 yuan: p.yuan,
-                reason: `🚨 АНТИЧИТ: Автоподсечка! Было ${oldYuan} ¥, стало ${p.yuan} ¥ (-50%).`
+                inventory: p.inventory,
+                reason: `🚨 АНТИЧИТ: Автоподсечка! Отнято 50% юаней и ВСЯ рыба из инвентаря.`
             });
         } else {
             return res.json({
                 success: false,
                 warning: true,
                 warningsCount: p.warnings,
-                reason: `⚠️ ПРЕДУПРЕЖДЕНИЕ (1/2): Зафиксирована автоподсечка! При повторе отнимет 50% юаней.`
+                reason: `⚠️ ПРЕДУПРЕЖДЕНИЕ (1/2): Зафиксирована автоподсечка! При повторе отнимет 50% юаней и ВСЮ рыбу.`
             });
         }
     }
@@ -252,7 +289,7 @@ app.post('/api/catch', (req, res) => {
     p.score += 1;
     p.currentHook = null;
 
-    res.json({ success: true, fish: caughtFish, score: p.score });
+    res.json({ success: true, fish: caughtFish, score: p.score, hunger: p.hunger });
 });
 
 app.post('/api/sellAll', (req, res) => {
@@ -279,6 +316,7 @@ app.post('/api/admin/getPlayers', (req, res) => {
         callsign: players[n].callsign,
         yuan: players[n].yuan,
         score: players[n].score,
+        hunger: players[n].hunger,
         warnings: players[n].warnings || 0,
         inventoryCount: players[n].inventory.length,
         isAdmin: !!players[n].isAdmin
