@@ -1,26 +1,70 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const rateLimit = require('express-rate-limit');
+
 const app = express();
 
 app.use(express.json());
 app.use(express.static('public'));
 
-const players = {
-    'xonntixx': {
-        password: '19210',
-        callsign: 'ОСТАП',
-        isAdmin: true,
-        yuan: 1000,
-        score: 0,
-        hunger: 100,
-        inventory: [],
-        baits: { bread: 3, worm: 0, premium: 0 },
-        activeBait: null,
-        warnings: 0,
-        currentHook: null,
-        sessionToken: null
+// --- ANTI-DDOS / RATE LIMITING ---
+// Allow maximum 5 account creation/login requests per 1 minute per IP
+const authLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 5, // Limit each IP to 5 requests per windowMs
+    message: { success: false, error: 'Too many requests from this IP, please try again in a minute.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// --- PERSISTENT DATABASE SETUP ---
+const DB_FILE = path.join(__dirname, 'database.json');
+
+// Function to load players from JSON file
+function loadDatabase() {
+    if (!fs.existsSync(DB_FILE)) {
+        // Initial default structure
+        const defaultData = {
+            'xonntixx': {
+                password: '19210',
+                callsign: 'ОСТАП',
+                isAdmin: true,
+                yuan: 1000,
+                score: 0,
+                hunger: 100,
+                inventory: [],
+                baits: { bread: 3, worm: 0, premium: 0 },
+                activeBait: null,
+                warnings: 0,
+                currentHook: null,
+                sessionToken: null
+            }
+        };
+        fs.writeFileSync(DB_FILE, JSON.stringify(defaultData, null, 4));
+        return defaultData;
     }
-};
+    try {
+        const rawData = fs.readFileSync(DB_FILE, 'utf8');
+        return JSON.parse(rawData);
+    } catch (err) {
+        console.error('Error reading database file, starting empty:', err);
+        return {};
+    }
+}
+
+// Function to save players to JSON file
+function saveDatabase() {
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(players, null, 4));
+    } catch (err) {
+        console.error('Failed to save database:', err);
+    }
+}
+
+// Initialize players from storage
+const players = loadDatabase();
 
 const CALLSIGNS = {
     'ОСТАП': { name: 'ОСТАП', bonusText: 'Удача (+30% зеленая зона, +30% редкая рыба)', zoneMod: 1.3, rareMod: 0.3, sellMod: 1.0 },
@@ -44,8 +88,8 @@ const SHOP_BAITS = {
 };
 
 const SHOP_FOOD = {
-    'snack': { name: 'Снек', price: 0.75, restore: 20 },
-    'meal': { name: 'Сытный обед', price: 2, restore: 50 }
+    'snack': { name: 'Снек', price: 15, restore: 20 },
+    'meal': { name: 'Сытный обед', price: 40, restore: 50 }
 };
 
 function calculatePrice(weight, isTrophy) {
@@ -58,15 +102,22 @@ function authByToken(nick, token) {
     return players[nick];
 }
 
-app.post('/api/login', (req, res) => {
+// APPLY RATE LIMITER TO LOGIN/REGISTER ENDPOINT
+app.post('/api/login', authLimiter, (req, res) => {
     const { nick, password, callsign } = req.body;
     if (!nick || !password) return res.json({ success: false, error: 'Заполните все поля!' });
+
+    // Sanitize username
+    const cleanNick = nick.trim().toLowerCase();
+    if (cleanNick.length < 3 || cleanNick.length > 16) {
+        return res.json({ success: false, error: 'Никнейм должен быть от 3 до 16 символов!' });
+    }
 
     const selectedCs = (callsign || 'ПАША').toUpperCase();
     const csData = CALLSIGNS[selectedCs] || CALLSIGNS['ПАША'];
 
-    if (!players[nick]) {
-        players[nick] = {
+    if (!players[cleanNick]) {
+        players[cleanNick] = {
             password,
             callsign: csData.name,
             isAdmin: false,
@@ -80,17 +131,19 @@ app.post('/api/login', (req, res) => {
             currentHook: null,
             sessionToken: null
         };
-    } else if (players[nick].password !== password) {
+        saveDatabase(); // Save new registration
+    } else if (players[cleanNick].password !== password) {
         return res.json({ success: false, error: 'Неверный пароль!' });
     }
 
     const token = crypto.randomBytes(16).toString('hex');
-    players[nick].sessionToken = token;
+    players[cleanNick].sessionToken = token;
+    saveDatabase(); // Save active session
 
-    const p = players[nick];
+    const p = players[cleanNick];
     res.json({
         success: true,
-        nick,
+        nick: cleanNick,
         token,
         callsign: p.callsign,
         callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ПАША']).bonusText,
@@ -132,6 +185,7 @@ app.post('/api/buyBait', (req, res) => {
 
     p.yuan = parseFloat((p.yuan - bait.price).toFixed(2));
     p.baits[req.body.baitId] = (p.baits[req.body.baitId] || 0) + 1;
+    saveDatabase();
 
     res.json({ success: true, yuan: p.yuan, baits: p.baits });
 });
@@ -148,6 +202,7 @@ app.post('/api/equipBait', (req, res) => {
     } else {
         return res.json({ success: false, error: 'Наживки нет в наличии!' });
     }
+    saveDatabase();
 
     res.json({ success: true, activeBait: p.activeBait });
 });
@@ -167,6 +222,7 @@ app.post('/api/buyFood', (req, res) => {
 
     p.yuan = parseFloat((p.yuan - totalPrice).toFixed(2));
     p.hunger = Math.min(100, p.hunger + (food.restore * qty));
+    saveDatabase();
 
     res.json({ success: true, yuan: p.yuan, hunger: p.hunger });
 });
@@ -208,7 +264,6 @@ app.post('/api/cast', (req, res) => {
     zoneDegree = Math.min(320, Math.max(15, zoneDegree));
     const startAngle = Math.floor(Math.random() * (360 - zoneDegree));
 
-    // Генерация одноразового ключа подсечки (Hook Nonce)
     const hookToken = crypto.randomBytes(8).toString('hex');
 
     p.currentHook = {
@@ -226,6 +281,7 @@ app.post('/api/cast', (req, res) => {
         requiredHits: 5,
         castTime: Date.now()
     };
+    saveDatabase();
 
     res.json({
         success: true,
@@ -248,29 +304,25 @@ app.post('/api/catch', (req, res) => {
 
     const { hookToken, clickTimestamps } = req.body;
 
-    // 1. ПРОВЕРКА ОДНОРАЗОВОГО ТОКЕНА
     if (!hookToken || hookToken !== p.currentHook.hookToken) {
         p.currentHook = null;
+        saveDatabase();
         return res.status(403).json({ success: false, reason: '🚨 Токен заброса недействителен или уже использован!' });
     }
 
     const now = Date.now();
     const activeHook = p.currentHook;
-    
-    // Моментально сжигаем текущий hookToken, чтобы исключить повтор
     p.currentHook = null;
 
     let isBotDetected = false;
 
-    // 2. СЕРВЕРНАЯ ПРОВЕРКА МИНИМАЛЬНОГО ВРЕМЕНИ (Физический предел человека)
     const elapsedTime = now - activeHook.castTime;
-    const minRealisticTimeMs = 1200; // На 5 попаданий со сдвигом нужно минимум 1.2с
+    const minRealisticTimeMs = 1200;
 
     if (elapsedTime < minRealisticTimeMs) {
         isBotDetected = true;
     }
 
-    // 3. ПРОВЕРКА КЛИКОВ И ИНТЕРВАЛОВ
     if (!Array.isArray(clickTimestamps) || clickTimestamps.length !== 5) {
         isBotDetected = true;
     } else {
@@ -284,8 +336,6 @@ app.post('/api/catch', (req, res) => {
         const stdDev = Math.sqrt(variance);
 
         const hasImpossibleSpeed = intervals.some(dt => dt < 80);
-        
-        // Валидация временных меток в рамках серверного заброса
         const invalidTimestamps = clickTimestamps.some(t => t < activeHook.castTime || t > now);
 
         if ((stdDev < 12) || hasImpossibleSpeed || invalidTimestamps) {
@@ -300,6 +350,7 @@ app.post('/api/catch', (req, res) => {
             p.yuan = parseFloat((p.yuan * 0.5).toFixed(2));
             p.inventory = [];
             p.warnings = 0;
+            saveDatabase();
             return res.json({
                 success: false,
                 penalty: true,
@@ -308,6 +359,7 @@ app.post('/api/catch', (req, res) => {
                 reason: `🚨 АНТИЧИТ: Зафиксирована автоподсечка/подмена запросов! Отнято 50% юаней и ВСЯ рыба.`
             });
         } else {
+            saveDatabase();
             return res.json({
                 success: false,
                 warning: true,
@@ -320,6 +372,7 @@ app.post('/api/catch', (req, res) => {
     const caughtFish = activeHook.fish;
     p.inventory.push(caughtFish);
     p.score += 1;
+    saveDatabase();
 
     res.json({ success: true, fish: caughtFish, score: p.score, hunger: p.hunger });
 });
@@ -335,6 +388,7 @@ app.post('/api/sellAll', (req, res) => {
     const totalEarned = parseFloat((rawEarned * (cs.sellMod || 1.0)).toFixed(2));
     p.yuan = parseFloat((p.yuan + totalEarned).toFixed(2));
     p.inventory = [];
+    saveDatabase();
 
     res.json({ success: true, earned: totalEarned, yuan: p.yuan });
 });
@@ -367,11 +421,13 @@ app.post('/api/admin/updatePlayer', (req, res) => {
     if (deleteAccount) {
         if (targetNick === 'xonntixx') return res.json({ success: false, error: 'Нельзя удалить главного админа' });
         delete players[targetNick];
+        saveDatabase();
         return res.json({ success: true });
     }
 
     if (newYuan !== undefined) players[targetNick].yuan = parseFloat(newYuan);
     if (newScore !== undefined) players[targetNick].score = parseInt(newScore);
+    saveDatabase();
 
     res.json({ success: true });
 });
