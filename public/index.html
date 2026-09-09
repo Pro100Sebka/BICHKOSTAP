@@ -18,7 +18,7 @@
         #shop-panel {
             width: 250px; background: #111; border-right: 4px solid #333;
             padding: 15px; box-sizing: border-box; position: absolute;
-            left: -250px; height: 100vh; overflow-y: auto;
+            left: -250px; height: 100vh; overflow-y: auto; z-index: 90;
         }
         .shop-item {
             background: #222; border: 2px solid #444; padding: 10px;
@@ -30,7 +30,7 @@
 
         #game-container { display: flex; justify-content: center; align-items: center; width: 100vw; gap: 20px; }
         .panel { background: #111; border: 2px solid #444; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 12px; }
-        .center-panel { width: 500px; text-align: center; }
+        .center-panel { width: 520px; text-align: center; }
 
         button { color: white; border: 2px solid #1a3a16; padding: 8px; cursor: pointer; font-family: 'Press Start 2P', cursive; font-size: 9px; border-radius: 4px; background: #2d5a27; }
         button:disabled { background: #555 !important; border-color: #333 !important; cursor: not-allowed; }
@@ -38,10 +38,9 @@
 
         input, select { background: #000; border: 1px solid #555; color: #fff; padding: 8px; font-family: inherit; font-size: 9px; text-align: center; margin-bottom: 8px; width: 80%; border-radius: 4px; }
 
-        /* Берег и Рыбак */
         #fishing-area {
             position: relative; background: linear-gradient(#1c2a38, #0f161c);
-            border: 2px solid #444; height: 260px; margin-bottom: 10px;
+            border: 2px solid #444; height: 280px; margin-bottom: 10px;
             overflow: hidden; border-radius: 6px;
         }
         .water { position: absolute; bottom: 0; width: 100%; height: 55%; background: linear-gradient(180deg, #183545 0%, #0c1a24 100%); border-top: 2px solid #234d65; }
@@ -54,9 +53,17 @@
         #player-character .body { width: 28px; height: 34px; background: #37474f; position: absolute; top: 22px; left: 7px; border-radius: 5px; }
         #player-character .rod { width: 110px; height: 2px; background: #d7ccc8; position: absolute; top: 28px; left: 18px; transform: rotate(-25deg); transform-origin: left center; }
 
-        /* Мини-игра Часы */
-        #minigame-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 15; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        #clock-canvas { background: #111; border: 4px solid #ff9800; border-radius: 50%; box-shadow: 0 0 15px rgba(255, 152, 0, 0.4); cursor: pointer; }
+        /* Модалка мини-игры */
+        #minigame-modal {
+            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.92);
+            z-index: 50; display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        #clock-canvas {
+            background: #080808; border: 4px solid #ff9800;
+            border-radius: 50%; box-shadow: 0 0 20px rgba(255, 152, 0, 0.6);
+            cursor: pointer;
+        }
 
         .fish-card { background: #181818; border: 1px solid #333; padding: 8px; margin-bottom: 5px; border-radius: 4px; }
         #inventory-list { max-height: 260px; overflow-y: auto; }
@@ -120,14 +127,13 @@
                 
                 <label style="font-size: 8px; color: #aaa;">ПОЗЫВНОЙ:</label><br>
                 <select id="callsign-input">
-                    <option value="ОСТАП">ОСТАП (Удача +30%)</option>
-                    <option value="СОКОЛ">СОКОЛ (Стрелка -20% скор.)</option>
-                    <option value="ФАНТОМ">ФАНТОМ (Продажа +15%)</option>
-                    <option value="ЩУКА">ЩУКА (Зона +15%)</option>
+                    <option value="ОСТАП">ОСТАП (Удача +30% зона, +10% редкая)</option>
+                    <option value="КОЧ">КОЧ (Узкоглазый -20% скор.)</option>
+                    <option value="СЕМКА">СЕМКА (Жадина +15% продажа)</option>
+                    <option value="ПАША" selected>ПАША (Рускый хакер +15% зона)</option>
                 </select><br><br>
 
                 <button onclick="login()">ВОЙТИ / РЕГ</button>
-                <div id="auth-error" style="color: #f44336; margin-top: 10px; font-size: 8px;"></div>
             </div>
 
             <div id="fishing-section" style="display: none;">
@@ -143,11 +149,11 @@
                     </div>
                     <div id="fishing-float" class="float"></div>
 
-                    <!-- Модалка Часы -->
+                    <!-- Модалка с циферблатом -->
                     <div id="minigame-modal">
-                        <div style="color:#ff9800; font-size:8px; margin-bottom:10px;">ПОДСЕКАЙ В ЗЕЛЕНОЙ ЗОНЕ (5 РАЗ)!</div>
-                        <canvas id="clock-canvas" width="180" height="180"></canvas>
-                        <div id="mg-counter" style="color:#fff; font-size:9px; margin-top:10px;">ПОПАДАНИЙ: 0 / 5</div>
+                        <div style="color:#ff9800; font-size:8px; margin-bottom:8px;">ПОДСЕКАЙ В ЗЕЛЕНОЙ ЗОНЕ (5 РАЗ)!</div>
+                        <canvas id="clock-canvas" width="260" height="260"></canvas>
+                        <div id="mg-counter" style="color:#fff; font-size:9px; margin-top:8px;">ПОПАДАНИЙ: 0 / 5</div>
                     </div>
                 </div>
 
@@ -242,7 +248,6 @@
             document.getElementById('warning-badge').style.display = 'none';
         }
 
-        // Обновление наживок
         if (data.baits) {
             document.getElementById('count-bread').innerText = data.baits.bread || 0;
             document.getElementById('count-worm').innerText = data.baits.worm || 0;
@@ -322,36 +327,75 @@
         const ctx = canvas.getContext('2d');
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
+        const radius = 100;
 
-        mgAngle = (mgAngle + mgSpeed * 2.5) % 360;
+        mgAngle = (mgAngle + mgSpeed * 2.2) % 360;
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Полная очистка с заливкой непрозрачного фона
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Зеленый сектор (Зона подсечки)
+        // 1. Шкала и засечки (Циферблат)
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#141c14';
+        ctx.fill();
+        ctx.strokeStyle = '#ff9800';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        for (let i = 0; i < 12; i++) {
+            const angleRad = (i * 30 - 90) * Math.PI / 180;
+            const x1 = cx + (radius - 12) * Math.cos(angleRad);
+            const y1 = cy + (radius - 12) * Math.sin(angleRad);
+            const x2 = cx + radius * Math.cos(angleRad);
+            const y2 = cy + radius * Math.sin(angleRad);
+            
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // 2. Зеленая зона (Яркий сектор)
         const radStart = (mgZoneStart - 90) * Math.PI / 180;
         const radEnd = (mgZoneStart + mgZoneSize - 90) * Math.PI / 180;
 
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, 75, radStart, radEnd);
-        ctx.fillStyle = '#4caf50';
+        ctx.arc(cx, cy, radius - 2, radStart, radEnd);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 255, 102, 0.85)';
         ctx.fill();
-
-        // Циферблат
-        ctx.beginPath();
-        ctx.arc(cx, cy, 75, 0, 2 * Math.PI);
-        ctx.strokeStyle = '#ff9800';
+        ctx.strokeStyle = '#00ff66';
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Стрелка
+        // 3. Вращающаяся яркая красная стрелка
         const arrowRad = (mgAngle - 90) * Math.PI / 180;
+        const arrowX = cx + (radius - 8) * Math.cos(arrowRad);
+        const arrowY = cy + (radius - 8) * Math.sin(arrowRad);
+
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + 65 * Math.cos(arrowRad), cy + 65 * Math.sin(arrowRad));
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4;
+        ctx.lineTo(arrowX, arrowY);
+        ctx.strokeStyle = '#ff2222';
+        ctx.lineWidth = 5;
         ctx.stroke();
+
+        // Маркер на конце стрелки
+        ctx.beginPath();
+        ctx.arc(arrowX, arrowY, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Центральный пин
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff9800';
+        ctx.fill();
 
         mgAnimId = requestAnimationFrame(animateClock);
     }

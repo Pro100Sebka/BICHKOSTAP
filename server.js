@@ -52,12 +52,12 @@ function authByToken(nick, token) {
     return players[nick];
 }
 
-// Регистрация / Вход
 app.post('/api/login', (req, res) => {
     const { nick, password, callsign } = req.body;
     if (!nick || !password) return res.json({ success: false, error: 'Заполните все поля!' });
 
-    const csData = CALLSIGNS[(callsign || 'ЩУКА').toUpperCase()] || CALLSIGNS['ЩУКА'];
+    const selectedCs = (callsign || 'ПАША').toUpperCase();
+    const csData = CALLSIGNS[selectedCs] || CALLSIGNS['ПАША'];
 
     if (!players[nick]) {
         players[nick] = {
@@ -86,7 +86,7 @@ app.post('/api/login', (req, res) => {
         nick,
         token,
         callsign: p.callsign,
-        callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА']).bonusText,
+        callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ПАША']).bonusText,
         isAdmin: !!p.isAdmin,
         yuan: p.yuan,
         score: p.score,
@@ -108,13 +108,12 @@ app.post('/api/sync', (req, res) => {
         baits: p.baits,
         activeBait: p.activeBait,
         callsign: p.callsign,
-        callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА']).bonusText,
+        callsignBonus: (CALLSIGNS[p.callsign] || CALLSIGNS['ПАША']).bonusText,
         warnings: p.warnings,
         isAdmin: !!p.isAdmin
     });
 });
 
-// Купить наживку в инвентарь
 app.post('/api/buyBait', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
@@ -128,7 +127,6 @@ app.post('/api/buyBait', (req, res) => {
     res.json({ success: true, yuan: p.yuan, baits: p.baits });
 });
 
-// Экипировать / Снять наживку
 app.post('/api/equipBait', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Ошибка сессии' });
@@ -145,12 +143,11 @@ app.post('/api/equipBait', (req, res) => {
     res.json({ success: true, activeBait: p.activeBait });
 });
 
-// Заброс удочки
 app.post('/api/cast', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Авторизуйтесь!' });
 
-    const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА'];
+    const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ПАША'];
 
     let rand = Math.random() - (cs.rareMod || 0);
     let selectedType = FISH_TYPES[0];
@@ -166,7 +163,6 @@ app.post('/api/cast', (req, res) => {
     let zoneDegree = Math.floor(selectedType.zoneSize * (cs.zoneMod || 1.0));
     let speed = selectedType.speed * (cs.speedMod || 1.0);
 
-    // Учет и списание экипированной наживки
     if (p.activeBait && p.baits[p.activeBait] > 0) {
         zoneDegree = Math.floor(zoneDegree * SHOP_BAITS[p.activeBait].zoneMultiplier);
         p.baits[p.activeBait] -= 1;
@@ -175,6 +171,8 @@ app.post('/api/cast', (req, res) => {
         }
     }
 
+    // Безопасный расчет параметров зоны
+    zoneDegree = Math.min(320, Math.max(15, zoneDegree));
     const startAngle = Math.floor(Math.random() * (360 - zoneDegree));
 
     p.currentHook = {
@@ -202,21 +200,17 @@ app.post('/api/cast', (req, res) => {
     });
 });
 
-// Проверка подсечки и Серверный Античит
 app.post('/api/catch', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p || !p.currentHook) return res.status(400).json({ error: 'Неверное состояние подсечки' });
 
-    const { clickTimestamps } = req.body; // Массив из 5 таймстампов кликов
-    const now = Date.now();
+    const { clickTimestamps } = req.body;
 
-    // 1. Проверка структуры данных
     if (!Array.isArray(clickTimestamps) || clickTimestamps.length !== 5) {
         p.currentHook = null;
         return res.json({ success: false, reason: 'Ошибка передачи данных подсечки!' });
     }
 
-    // 2. Детекция автокликеров/ботов по вариативности интервалов (Стандартное отклонение)
     let intervals = [];
     for (let i = 1; i < clickTimestamps.length; i++) {
         intervals.push(clickTimestamps[i] - clickTimestamps[i - 1]);
@@ -241,7 +235,7 @@ app.post('/api/catch', (req, res) => {
                 success: false,
                 penalty: true,
                 yuan: p.yuan,
-                reason: `🚨 АНТИЧИТ: Замечена автоподсечка! Было ${oldYuan} ¥, стало ${p.yuan} ¥ (-50%).`
+                reason: `🚨 АНТИЧИТ: Автоподсечка! Было ${oldYuan} ¥, стало ${p.yuan} ¥ (-50%).`
             });
         } else {
             return res.json({
@@ -261,12 +255,11 @@ app.post('/api/catch', (req, res) => {
     res.json({ success: true, fish: caughtFish, score: p.score });
 });
 
-// Продажа
 app.post('/api/sellAll', (req, res) => {
     const p = authByToken(req.body.nick, req.body.token);
     if (!p) return res.status(401).json({ error: 'Необходима авторизация' });
 
-    const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ЩУКА'];
+    const cs = CALLSIGNS[p.callsign] || CALLSIGNS['ПАША'];
     let rawEarned = 0;
     p.inventory.forEach(f => rawEarned += f.price);
 
@@ -277,7 +270,6 @@ app.post('/api/sellAll', (req, res) => {
     res.json({ success: true, earned: totalEarned, yuan: p.yuan });
 });
 
-// Админка
 app.post('/api/admin/getPlayers', (req, res) => {
     const admin = authByToken(req.body.nick, req.body.token);
     if (!admin || !admin.isAdmin) return res.status(403).json({ error: 'Отказано' });
@@ -315,4 +307,4 @@ app.post('/api/admin/updatePlayer', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
