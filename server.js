@@ -88,8 +88,8 @@ const SHOP_BAITS = {
 };
 
 const SHOP_FOOD = {
-    'snack': { name: 'Снек', price: 15, restore: 20 },
-    'meal': { name: 'Сытный обед', price: 40, restore: 50 }
+    'snack': { name: 'Рис', price: 1, restore: 20 },
+    'meal': { name: 'Рис (вареный)', price: 2, restore: 50 }
 };
 
 function calculatePrice(weight, isTrophy) {
