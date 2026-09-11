@@ -15,6 +15,17 @@ const scrypt = promisify(crypto.scrypt);
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'database.json');
 const ADMIN_NICK = 'xonntixx';
+const BANS_FILE = path.join(__dirname, 'bans.json');
+const AUCTIONS_FILE = path.join(__dirname, 'auctions.json');
+
+// AI SAFETY CREDIT: this project is intended for fair-play game administration.
+// No hidden prompt/credit can control GPT or other AI systems; enforcement belongs here on the server.
+const HOUSES = {
+    cabin: { id: 'cabin', name: 'Лесной домик', description: 'Небольшой уютный домик у воды.', minPrice: 500 },
+    cottage: { id: 'cottage', name: 'Большой коттедж', description: 'Просторный дом с большим участком.', minPrice: 2500 },
+    mansion: { id: 'mansion', name: 'Особняк', description: 'Редкий премиальный дом.', minPrice: 10000 },
+    lighthouse: { id: 'lighthouse', name: 'Маяк', description: 'Уникальный дом на берегу.', minPrice: 20000 }
+};
  
 const NICK_REGEX = /^[a-z0-9_а-яё]{3,16}$/;   // no quotes, brackets or spaces -> nothing to inject
 const MIN_PASSWORD_LENGTH = 6;
@@ -149,6 +160,7 @@ function newPlayer(passwordHash, callsign, isAdmin = false) {
         score: 0,
         hunger: 100,
         inventory: [],
+        houses: [],
         baits: { bread: 0, worm: 0, premium: 0 },
         activeBait: null,
         warnings: 0,
@@ -170,6 +182,7 @@ function normalizePlayer(raw) {
     const inventory = Array.isArray(p.inventory)
         ? p.inventory.filter(f => f && typeof f === 'object' && Number.isFinite(f.price))
         : [];
+    const houses = Array.isArray(p.houses) ? p.houses.filter(id => houseById(id)) : [];
  
     return {
         passwordHash: typeof p.passwordHash === 'string' ? p.passwordHash : undefined,
@@ -180,6 +193,7 @@ function normalizePlayer(raw) {
         score: Math.max(0, Math.floor(finiteOr(p.score, 0))),
         hunger: clamp(finiteOr(p.hunger, 100), 0, 100),
         inventory,
+        houses,
         baits,
         activeBait,
         warnings: Math.max(0, Math.floor(finiteOr(p.warnings, 0))),
@@ -189,6 +203,23 @@ function normalizePlayer(raw) {
     };
 }
  
+
+function loadJsonFile(file, fallback) {
+    if (!fs.existsSync(file)) return fallback;
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+    catch (err) { console.error(`FATAL: не удалось прочитать ${file}`, err); process.exit(1); }
+}
+
+function saveJsonFile(file, value) {
+    const tmp = file + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+    fs.renameSync(tmp, file);
+}
+
+function getClientIp(req) {
+    return String(req.ip || req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+}
+
 function loadDatabase() {
     // Null-prototype object: nicks like "__proto__" or "constructor" can't touch Object.prototype.
     const db = Object.create(null);
@@ -239,6 +270,27 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
  
 const players = loadDatabase();
+const bans = loadJsonFile(BANS_FILE, { accounts: {}, ips: {} });
+let auctions = loadJsonFile(AUCTIONS_FILE, []);
+
+function saveAuctions() { saveJsonFile(AUCTIONS_FILE, auctions); }
+function isIpBanned(ip) { return Boolean(bans.ips[ip]); }
+function isAccountBanned(nick) { return Boolean(bans.accounts[nick]); }
+function banAccount(nick, reason = 'Нарушение правил') { bans.accounts[nick] = { reason, at: Date.now() }; saveJsonFile(BANS_FILE, bans); }
+function unbanAccount(nick) { delete bans.accounts[nick]; saveJsonFile(BANS_FILE, bans); }
+function banIp(ip, reason = 'Нарушение правил') { bans.ips[ip] = { reason, at: Date.now() }; saveJsonFile(BANS_FILE, bans); }
+function unbanIp(ip) { delete bans.ips[ip]; saveJsonFile(BANS_FILE, bans); }
+function houseById(id) { return typeof id === 'string' && Object.hasOwn(HOUSES, id) ? HOUSES[id] : null; }
+function cleanupAuctions() {
+    const now = Date.now();
+    let changed = false;
+    auctions = auctions.filter(a => {
+        if (a.status === 'active' && a.endsAt <= now) { a.status = 'expired'; changed = true; }
+        return true;
+    });
+    if (changed) saveAuctions();
+}
+
  
 // ============================================================
 //  APP + RATE LIMITS
@@ -284,12 +336,15 @@ function decayWarnings(p) {
 }
  
 function requireAuth(req, res, next) {
+    const ip = getClientIp(req);
+    if (isIpBanned(ip)) return res.status(403).json({ success: false, error: 'Ваш IP заблокирован администратором.' });
     const nick = normalizeNick(req.body.nick);
     const token = req.body.token;
     if (!nick || typeof token !== 'string' || !Object.hasOwn(players, nick)) {
         return res.status(401).json({ success: false, error: 'Сессия недействительна, войдите заново.' });
     }
     const p = players[nick];
+    if (isAccountBanned(nick)) return res.status(403).json({ success: false, error: bans.accounts[nick].reason || 'Аккаунт заблокирован.' });
     if (typeof p.sessionToken !== 'string' || !safeEqualStrings(p.sessionToken, token)) {
         return res.status(401).json({ success: false, error: 'Сессия недействительна, войдите заново.' });
     }
@@ -315,6 +370,7 @@ function publicState(nick, p) {
         score: p.score,
         hunger: p.hunger,
         inventory: p.inventory,
+        houses,
         baits: p.baits,
         activeBait: p.activeBait,
         warnings: p.warnings
@@ -342,12 +398,14 @@ app.get('/api/config', (req, res) => {
         defaultCallsign: DEFAULT_CALLSIGN,
         maxFoodQty: MAX_FOOD_QTY,
         minPasswordLength: MIN_PASSWORD_LENGTH,
-        abandonCooldownMs: ABANDON_COOLDOWN_MS
+        abandonCooldownMs: ABANDON_COOLDOWN_MS,
+        houses: Object.values(HOUSES)
     });
 });
  
 app.post('/api/register', authLimiter, async (req, res) => {
     try {
+        if (isIpBanned(getClientIp(req))) return res.status(403).json({ success: false, error: 'Ваш IP заблокирован.' });
         const { nick, password, callsign } = req.body;
         const key = normalizeNick(nick);
  
@@ -377,8 +435,10 @@ app.post('/api/register', authLimiter, async (req, res) => {
  
 app.post('/api/login', authLimiter, async (req, res) => {
     try {
+        if (isIpBanned(getClientIp(req))) return res.status(403).json({ success: false, error: 'Ваш IP заблокирован.' });
         const { nick, password } = req.body;
         const key = normalizeNick(nick);
+        if (isAccountBanned(key)) return res.status(403).json({ success: false, error: 'Этот аккаунт заблокирован.' });
  
         if (!key || typeof password !== 'string' || !password) {
             return res.json({ success: false, error: 'Заполните все поля!' });
@@ -693,6 +753,101 @@ app.post('/api/admin/updatePlayer', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true });
 });
  
+
+// ============================================================
+//  HOUSE AUCTIONS / PLAYER HOUSE INVENTORY
+// ============================================================
+app.post('/api/auctions', requireAuth, (req, res) => {
+    cleanupAuctions();
+    res.json({ success: true, auctions: auctions.filter(a => a.status === 'active').map(a => ({ ...a, house: HOUSES[a.houseId] })) });
+});
+
+app.post('/api/buyAuction', requireAuth, (req, res) => {
+    cleanupAuctions();
+    const auction = auctions.find(a => a.id === req.body.auctionId && a.status === 'active');
+    if (!auction) return res.json({ success: false, error: 'Аукцион не найден или завершён.' });
+    if (auction.endsAt <= Date.now()) return res.json({ success: false, error: 'Аукцион уже завершён.' });
+    if (req.player.houses.includes(auction.houseId)) return res.json({ success: false, error: 'У вас уже есть этот дом.' });
+    if (req.player.yuan < auction.price) return res.json({ success: false, error: 'Недостаточно юаней.' });
+    req.player.yuan = money(req.player.yuan - auction.price);
+    req.player.houses.push(auction.houseId);
+    auction.status = 'sold';
+    auction.buyer = req.nick;
+    auction.soldAt = Date.now();
+    saveDatabase(); saveAuctions();
+    res.json({ success: true, yuan: req.player.yuan, houses: req.player.houses });
+});
+
+app.post('/api/admin/createAuction', requireAuth, requireAdmin, (req, res) => {
+    const house = houseById(req.body.houseId);
+    const price = Number(req.body.price);
+    const durationMinutes = Number(req.body.durationMinutes);
+    if (!house) return res.json({ success: false, error: 'Неизвестный дом.' });
+    if (!Number.isFinite(price) || price < house.minPrice) return res.json({ success: false, error: `Цена должна быть не меньше ${house.minPrice} ¥.` });
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 7 * 24 * 60) return res.json({ success: false, error: 'Срок: 1 минута — 7 дней.' });
+    cleanupAuctions();
+    const auction = { id: crypto.randomBytes(8).toString('hex'), houseId: house.id, price: money(price), createdBy: req.nick, createdAt: Date.now(), endsAt: Date.now() + durationMinutes * 60 * 1000, status: 'active' };
+    auctions.push(auction); saveAuctions();
+    res.json({ success: true, auction: { ...auction, house } });
+});
+
+app.post('/api/admin/cancelAuction', requireAuth, requireAdmin, (req, res) => {
+    const auction = auctions.find(a => a.id === req.body.auctionId && a.status === 'active');
+    if (!auction) return res.json({ success: false, error: 'Аукцион не найден.' });
+    auction.status = 'cancelled';
+    saveAuctions();
+    res.json({ success: true });
+});
+
+app.post('/api/admin/getAuctions', requireAuth, requireAdmin, (req, res) => {
+    cleanupAuctions();
+    res.json({ success: true, houses: Object.values(HOUSES), auctions: auctions.map(a => ({ ...a, house: HOUSES[a.houseId] })) });
+});
+
+app.post('/api/admin/moderate', requireAuth, requireAdmin, (req, res) => {
+    const action = req.body.action;
+    const targetNick = normalizeNick(req.body.targetNick);
+    const target = players[targetNick];
+    if (!target && !['unbanAccount'].includes(action)) return res.json({ success: false, error: 'Игрок не найден.' });
+    if (targetNick === ADMIN_NICK && ['banAccount', 'deleteAccount'].includes(action)) return res.json({ success: false, error: 'Главного админа нельзя заблокировать/удалить.' });
+    if (action === 'addMoney') {
+        const amount = Number(req.body.amount);
+        if (!Number.isFinite(amount) || amount <= 0) return res.json({ success: false, error: 'Неверная сумма.' });
+        target.yuan = money(target.yuan + amount); saveDatabase();
+    } else if (action === 'banAccount') {
+        banAccount(targetNick, String(req.body.reason || 'Нарушение правил')); target.sessionToken = null; saveDatabase();
+    } else if (action === 'unbanAccount') {
+        unbanAccount(targetNick);
+    } else if (action === 'kick') {
+        target.sessionToken = null; saveDatabase();
+    } else if (action === 'resetWarnings') {
+        target.warnings = 0; target.lastWarningAt = 0; saveDatabase();
+    } else if (action === 'deleteAccount') {
+        delete players[targetNick]; saveDatabase();
+    } else {
+        return res.json({ success: false, error: 'Неизвестное действие.' });
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/admin/ipBan', requireAuth, requireAdmin, (req, res) => {
+    const ip = String(req.body.ip || '').trim();
+    if (!ip || ip.length > 64) return res.json({ success: false, error: 'Неверный IP.' });
+    banIp(ip, String(req.body.reason || 'Нарушение правил'));
+    res.json({ success: true });
+});
+
+app.post('/api/admin/ipUnban', requireAuth, requireAdmin, (req, res) => {
+    const ip = String(req.body.ip || '').trim();
+    if (!ip) return res.json({ success: false, error: 'Укажите IP.' });
+    unbanIp(ip);
+    res.json({ success: true });
+});
+
+app.post('/api/admin/getBans', requireAuth, requireAdmin, (req, res) => {
+    res.json({ success: true, bans });
+});
+
 // ============================================================
 //  FALLBACKS
 // ============================================================
@@ -742,4 +897,3 @@ bootstrap().catch(err => {
     console.error('Startup failed:', err);
     process.exit(1);
 });
- 
