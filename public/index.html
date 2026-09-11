@@ -98,6 +98,7 @@
         #admin-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; }
         .admin-box { background: #111; border: 3px solid #d32f2f; padding: 20px; width: 600px; max-height: 80vh; overflow-y: auto; border-radius: 8px; }
         .admin-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #222; border: 1px solid #444; padding: 10px; margin-bottom: 10px; font-size: 8px; }
+        .admin-box select { width: auto; }
         .admin-input { width: 60px !important; margin: 0 5px !important; padding: 4px !important; font-size: 8px !important; }
     </style>
 </head>
@@ -184,6 +185,8 @@
         </div>
 
         <div class="panel" style="width: 250px;">
+            <h3 style="margin: 0; text-align: center;">ДОМА</h3>
+            <div id="house-inventory" style="max-height:110px; overflow-y:auto;">Пусто</div>
             <h3 style="margin: 0; text-align: center;">ИНВЕНТАРЬ</h3>
             <button id="sell-all-btn" style="width: 100%; font-size: 8px; margin-bottom: 8px;" onclick="sellAllFish()">ПРОДАТЬ ВСЁ 💰</button>
             <div id="inventory-list"></div>
@@ -194,7 +197,24 @@
 <div id="admin-modal">
     <div class="admin-box">
         <h3 style="color: #d32f2f; text-align: center; margin-top: 0;">АДМИН-ПАНЕЛЬ</h3>
+        <div style="border:1px solid #444;padding:10px;margin-bottom:10px;">
+            <b>СОЗДАТЬ АУКЦИОН ДОМА</b><br><br>
+            <select id="auction-house" style="width:100%"></select>
+            <input id="auction-price" type="number" min="1" placeholder="Цена" style="width:42%">
+            <input id="auction-duration" type="number" min="1" value="60" placeholder="Минут" style="width:42%">
+            <button onclick="createAuction()" style="width:100%">СОЗДАТЬ</button>
+        </div>
+        <div id="admin-auctions-list"></div>
+        <hr style="width:100%;border-color:#333">
         <div id="admin-players-list"></div>
+        <hr style="width:100%;border-color:#333">
+        <div style="border:1px solid #444;padding:10px;">
+            <b>IP-МОДЕРАЦИЯ</b><br><br>
+            <input id="admin-ip" class="admin-input" style="width:160px !important" placeholder="IP-адрес">
+            <input id="admin-ip-reason" class="admin-input" style="width:180px !important" placeholder="Причина">
+            <button onclick="ipBan()">БАН IP</button>
+            <button onclick="ipUnban()">РАЗБАН IP</button>
+        </div>
         <button onclick="closeAdminModal()" style="width: 100%; margin-top: 10px; background: #444;">ЗАКРЫТЬ</button>
     </div>
 </div>
@@ -375,6 +395,7 @@
         $('fishing-section').style.display = 'block';
         $('admin-toggle').style.display = data.isAdmin ? 'block' : 'none';
         updateUI(data);
+        loadAuctions();
     }
 
     function logout(message) {
@@ -426,6 +447,7 @@
         $('warn-count').textContent = data.warnings || 0;
 
         updateBaits(data.baits, data.activeBait);
+        renderHouses(data.houses || []);
         renderInventory(data.inventory || []);
     }
 
@@ -697,6 +719,34 @@
         $('cast-btn').textContent = CAST_BTN_TEXT;
     }
 
+    function renderHouses(houses) {
+        const box = $('house-inventory');
+        box.replaceChildren();
+        if (!houses.length) { box.textContent = 'Пусто'; return; }
+        for (const id of houses) {
+            const h = el('div', 'fish-card', CONFIG.houses?.[id]?.name || id);
+            box.appendChild(h);
+        }
+    }
+
+    async function loadAuctions() {
+        const data = await req('/api/auctions');
+        if (!data.success) return;
+        let panel = $('auction-list');
+        if (!panel) {
+            panel = el('div'); panel.id = 'auction-list'; panel.className = 'panel'; panel.style.cssText = 'position:fixed;bottom:10px;left:10px;width:320px;max-height:280px;overflow:auto;z-index:80;';
+            document.body.appendChild(panel);
+        }
+        panel.replaceChildren(el('h3', null, '🏠 АУКЦИОНЫ ДОМОВ'));
+        if (!data.auctions.length) { panel.appendChild(el('div', null, 'Активных аукционов нет.')); return; }
+        for (const a of data.auctions) {
+            const row = el('div', 'fish-card');
+            row.append(el('b', null, a.house.name), el('div', null, `${a.house.description} | ${a.price} ¥`));
+            const buy = el('button', null, 'КУПИТЬ'); buy.onclick = async () => { const r = await req('/api/buyAuction', { auctionId: a.id }); if (!r.success) alert(r.error); else syncData(); loadAuctions(); };
+            row.appendChild(buy); panel.appendChild(row);
+        }
+    }
+
     // ---------- admin ----------
     async function openAdminModal() {
         $('admin-modal').style.display = 'flex';
@@ -710,6 +760,14 @@
             return;
         }
         for (const p of data.players) container.appendChild(buildAdminRow(p));
+        const houseSelect = $('auction-house');
+        houseSelect.replaceChildren();
+        const auctionData = await req('/api/admin/getAuctions');
+        if (auctionData.success) {
+            for (const h of auctionData.houses) { const o = el('option'); o.value = h.id; o.textContent = `${h.name} (от ${h.minPrice} ¥)`; houseSelect.appendChild(o); }
+            const list = $('admin-auctions-list'); list.replaceChildren(el('b', null, 'АКТИВНЫЕ/ЗАВЕРШЁННЫЕ АУКЦИОНЫ'));
+            for (const a of auctionData.auctions) { const r=el('div','admin-row'); r.append(el('span',null,`${a.house.name}: ${a.price} ¥ — ${a.status}`)); if(a.status==='active'){const b=el('button',null,'ОТМЕНИТЬ');b.onclick=()=>cancelAuction(a.id);r.appendChild(b);} list.appendChild(r); }
+        }
     }
 
     // Built with textContent / closures only: a nick can never become HTML or JS.
@@ -748,7 +806,10 @@
         deleteBtn.onclick = () => deletePlayer(p.nick);
 
         const actions = el('div');
-        actions.append(saveBtn, deleteBtn);
+        const moneyBtn = el('button', null, '+ДЕНЬГИ'); moneyBtn.onclick = async () => { const amount = prompt('Сколько выдать?', '1000'); if (amount) { const r=await req('/api/admin/moderate',{action:'addMoney',targetNick:p.nick,amount}); if(!r.success) alert(r.error); openAdminModal(); } };
+        const kickBtn = el('button', null, 'КИК'); kickBtn.onclick = async () => { const r=await req('/api/admin/moderate',{action:'kick',targetNick:p.nick}); if(!r.success) alert(r.error); };
+        const banBtn = el('button', null, 'БАН'); banBtn.onclick = async () => { const reason=prompt('Причина бана?','Нарушение правил') || 'Нарушение правил'; const r=await req('/api/admin/moderate',{action:'banAccount',targetNick:p.nick,reason}); if(!r.success) alert(r.error); openAdminModal(); };
+        actions.append(saveBtn, moneyBtn, kickBtn, banBtn, deleteBtn);
 
         row.append(info, inputs, actions);
         return row;
@@ -766,6 +827,26 @@
         const data = await req('/api/admin/updatePlayer', { targetNick, deleteAccount: true });
         if (!data.success) alert(data.error);
         openAdminModal();
+    }
+
+    async function createAuction() {
+        const data = await req('/api/admin/createAuction', { houseId: $('auction-house').value, price: $('auction-price').value, durationMinutes: $('auction-duration').value });
+        if (!data.success) return alert(data.error); openAdminModal(); loadAuctions();
+    }
+    async function cancelAuction(id) {
+        const data = await req('/api/admin/cancelAuction', { auctionId: id });
+        if (!data.success) alert(data.error); else openAdminModal();
+    }
+
+    async function ipBan() {
+        const ip = $('admin-ip').value.trim(); if (!ip) return alert('Укажите IP.');
+        const r = await req('/api/admin/ipBan', { ip, reason: $('admin-ip-reason').value.trim() || 'Нарушение правил' });
+        if (!r.success) alert(r.error); else alert('IP заблокирован.');
+    }
+    async function ipUnban() {
+        const ip = $('admin-ip').value.trim(); if (!ip) return alert('Укажите IP.');
+        const r = await req('/api/admin/ipUnban', { ip });
+        if (!r.success) alert(r.error); else alert('IP разблокирован.');
     }
 
     function closeAdminModal() {
