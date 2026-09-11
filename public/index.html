@@ -24,6 +24,7 @@
             background: #222; border: 2px solid #444; padding: 10px;
             margin-bottom: 10px; text-align: center; border-radius: 5px;
         }
+        .shop-section-title { color: #888; font-size: 8px; margin-bottom: 6px; text-align: center; }
 
         #shop-toggle { position: absolute; left: 10px; top: 10px; z-index: 100; background: #ff9800; border: none; padding: 10px; cursor: pointer; font-family: inherit; border-radius: 5px; }
         #admin-toggle { position: absolute; right: 10px; top: 10px; z-index: 100; background: #d32f2f; color: white; border: none; padding: 10px; cursor: pointer; font-family: inherit; border-radius: 5px; display: none; }
@@ -36,7 +37,7 @@
         button:disabled { background: #555 !important; border-color: #333 !important; cursor: not-allowed; }
         button:hover:not(:disabled) { background: #3e7a36; }
 
-        input[type="text"], input[type="password"], select {
+        input[type="text"], input[type="password"], input[type="number"], select {
             background: #000; border: 1px solid #555; color: #fff; padding: 8px;
             font-family: inherit; font-size: 9px; text-align: center; margin-bottom: 8px; width: 80%; border-radius: 4px;
         }
@@ -44,6 +45,8 @@
         input[type="range"] {
             width: 90%; margin: 8px 0; cursor: pointer; accent-color: #ff9800;
         }
+
+        #auth-error { color: #f44336; font-size: 8px; min-height: 10px; margin: 6px 0 10px; line-height: 1.5; }
 
         #hunger-container {
             width: 100%; background: #222; border: 2px solid #444; border-radius: 5px;
@@ -88,11 +91,13 @@
         }
 
         .fish-card { background: #181818; border: 1px solid #333; padding: 8px; margin-bottom: 5px; border-radius: 4px; }
+        .fish-card-top { display: flex; justify-content: space-between; font-size: 8px; }
+        .fish-card-price { color: #ffd700; font-size: 8px; margin-top: 4px; }
         #inventory-list { max-height: 260px; overflow-y: auto; }
 
         #admin-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; }
         .admin-box { background: #111; border: 3px solid #d32f2f; padding: 20px; width: 600px; max-height: 80vh; overflow-y: auto; border-radius: 8px; }
-        .admin-row { display: flex; justify-content: space-between; align-items: center; background: #222; border: 1px solid #444; padding: 10px; margin-bottom: 10px; font-size: 8px; }
+        .admin-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #222; border: 1px solid #444; padding: 10px; margin-bottom: 10px; font-size: 8px; }
         .admin-input { width: 60px !important; margin: 0 5px !important; padding: 4px !important; font-size: 8px !important; }
     </style>
 </head>
@@ -104,52 +109,13 @@
 <div id="main-wrapper">
     <div id="shop-panel">
         <h3 style="color: #ff9800; text-align: center; margin: 0 0 10px 0;">МАГАЗИН</h3>
-        
-        <div style="color: #888; font-size: 8px; margin-bottom: 6px; text-align: center;">--- НАЖИВКИ ---</div>
-        <div class="shop-item">
-            <div style="color: #4caf50;">Хлеб (+25% зона)</div>
-            <div style="font-size: 8px; margin: 4px 0;">50 ¥</div>
-            <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-bread">0</span></div>
-            <button onclick="buyBait('bread')">КУПИТЬ</button>
-            <button id="btn-equip-bread" onclick="equipBait('bread')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
-        </div>
-        <div class="shop-item">
-            <div style="color: #2196f3;">Червяк (+50% зона)</div>
-            <div style="font-size: 8px; margin: 4px 0;">150 ¥</div>
-            <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-worm">0</span></div>
-            <button onclick="buyBait('worm')">КУПИТЬ</button>
-            <button id="btn-equip-worm" onclick="equipBait('worm')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
-        </div>
-        <div class="shop-item">
-            <div style="color: #9c27b0;">Опарыш (x2 зона)</div>
-            <div style="font-size: 8px; margin: 4px 0;">500 ¥</div>
-            <div style="font-size: 8px; color:#aaa; margin-bottom: 6px;">У ВАС: <span id="count-premium">0</span></div>
-            <button onclick="buyBait('premium')">КУПИТЬ</button>
-            <button id="btn-equip-premium" onclick="equipBait('premium')" style="background:#444; margin-top:4px;">ЭКИПИРОВАТЬ</button>
-        </div>
+
+        <div class="shop-section-title">--- НАЖИВКИ ---</div>
+        <div id="shop-baits"><div style="text-align:center; color:#666;">Загрузка...</div></div>
         <button onclick="equipBait(null)" style="width:100%; background:#888; font-size:7px; margin-bottom:15px;">СНЯТЬ НАЖИВКУ</button>
 
-        <div style="color: #888; font-size: 8px; margin-bottom: 6px; text-align: center;">--- ЕДА ---</div>
-        
-        <div class="shop-item">
-            <div style="color: #ff9800;">Снек (+20 еды)</div>
-            <div style="font-size: 7px; color: #aaa; margin-top: 4px;">1 шт = 15 ¥</div>
-            <input type="range" id="slider-snack" min="1" max="10" value="1" oninput="updateFoodUI('snack', 15)">
-            <div style="font-size: 8px; margin-bottom: 6px;">
-                К-во: <span id="qty-snack">1</span> (<span id="total-snack">15</span> ¥)
-            </div>
-            <button onclick="buyFood('snack')">КУПИТЬ</button>
-        </div>
-
-        <div class="shop-item">
-            <div style="color: #ff5722;">Сытный обед (+50 еды)</div>
-            <div style="font-size: 7px; color: #aaa; margin-top: 4px;">1 шт = 40 ¥</div>
-            <input type="range" id="slider-meal" min="1" max="10" value="1" oninput="updateFoodUI('meal', 40)">
-            <div style="font-size: 8px; margin-bottom: 6px;">
-                К-во: <span id="qty-meal">1</span> (<span id="total-meal">40</span> ¥)
-            </div>
-            <button onclick="buyFood('meal')">КУПИТЬ</button>
-        </div>
+        <div class="shop-section-title">--- ЕДА ---</div>
+        <div id="shop-food"></div>
     </div>
 
     <div id="game-container">
@@ -168,18 +134,21 @@
         <div class="panel center-panel">
             <div id="auth-section">
                 <h3 style="color: #ff9800;">ВХОД В ИГРУ</h3>
-                <input type="text" id="nick-input" placeholder="НИКНЕЙМ"><br>
-                <input type="password" id="pass-input" placeholder="ПАРОЛЬ"><br>
-                
-                <label style="font-size: 8px; color: #aaa;">ПОЗЫВНОЙ:</label><br>
+                <input type="text" id="nick-input" placeholder="НИКНЕЙМ" maxlength="16" autocomplete="username"><br>
+                <input type="password" id="pass-input" placeholder="ПАРОЛЬ" autocomplete="current-password"><br>
+
+                <label style="font-size: 8px; color: #aaa;">ПОЗЫВНОЙ (выбирается при регистрации):</label><br>
                 <select id="callsign-input">
-                    <option value="ОСТАП">ОСТАП (Удача +30% зона, +30% редкая)</option>
-                    <option value="КОЧ">КОЧ (Узкоглазый -20% скор.)</option>
+                    <option value="ОСТАП">ОСТАП (Удача +30% зона, +30% трофеи)</option>
+                    <option value="КОЧ">КОЧ (Зоркий -20% скор.)</option>
                     <option value="СЕМКА">СЕМКА (Жадина +15% продажа)</option>
                     <option value="ПАША" selected>ПАША (Рускый хакер +15% зона)</option>
-                </select><br><br>
+                </select>
 
-                <button onclick="login()">ВОЙТИ / РЕГ</button>
+                <div id="auth-error"></div>
+
+                <button onclick="auth('login')">ВОЙТИ</button>
+                <button onclick="auth('register')" style="background:#1f4e79; border-color:#10283d;">РЕГИСТРАЦИЯ</button>
             </div>
 
             <div id="fishing-section" style="display: none;">
@@ -191,7 +160,7 @@
                 </div>
 
                 <div id="callsign-display" style="color: #ffd700; font-size: 8px; margin-bottom: 8px;">ПОЗЫВНОЙ: -</div>
-                
+
                 <div id="fishing-area">
                     <div class="water"></div>
                     <div class="dock"></div>
@@ -203,7 +172,7 @@
                     <div id="fishing-float" class="float"></div>
 
                     <div id="minigame-modal">
-                        <div style="color:#ff9800; font-size:8px; margin-bottom:8px;">ПОДСЕКАЙ В ЗЕЛЕНОЙ ЗОНЕ (5 РАЗ)!</div>
+                        <div style="color:#ff9800; font-size:8px; margin-bottom:8px;">ПОДСЕКАЙ В ЗЕЛЕНОЙ ЗОНЕ (<span id="mg-required">5</span> РАЗ)!</div>
                         <canvas id="clock-canvas" width="260" height="260"></canvas>
                         <div id="mg-counter" style="color:#fff; font-size:9px; margin-top:8px;">ПОПАДАНИЙ: 0 / 5</div>
                     </div>
@@ -231,196 +200,388 @@
 </div>
 
 <script>
+    const CAST_BTN_TEXT = 'ЗАБРОСИТЬ 🎣';
+    const CLIENT_MIN_CLICK_GAP_MS = 100;   // ignore accidental double-clicks (server rejects < 80 ms)
+    const MINIGAME_TIME_LIMIT_MS = 45000;  // server forgets a cast after 60 s
+    const BAIT_COLORS = { bread: '#4caf50', worm: '#2196f3', premium: '#9c27b0' };
+
+    let CONFIG = null;
     let currentNick = localStorage.getItem('bf_nick') || '';
     let sessionToken = sessionStorage.getItem('bf_token') || '';
-    let currentHookToken = null; // Токен текущего заброса
+    let currentHookToken = null;
+    let biteTimer = null;
+    let castCooldownTimer = null;
+    let mg = null;   // current minigame state
 
-    let mgAngle = 0;
-    let mgZoneStart = 0;
-    let mgZoneSize = 0;
-    let mgSpeed = 1.0;
-    let mgHitsDone = 0;
-    let mgClickTimestamps = [];
-    let mgAnimId = null;
-    let lastFrameTime = performance.now();
+    init();
 
-    if (currentNick && sessionToken) {
-        syncData();
+    async function init() {
+        await loadConfig();
+        if (currentNick && sessionToken) syncData();
+    }
+
+    // ---------- small helpers ----------
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    }
+    const $ = id => document.getElementById(id);
+    const setStatus = text => { $('status-text').textContent = text; };
+    const formatWeight = w => (w >= 1000 ? (w / 1000).toFixed(2) + ' кг' : w + ' г');
+    const zoneLabel = m => (m >= 2 ? `x${m}` : `+${Math.round((m - 1) * 100)}%`);
+
+    async function postJson(url, body) {
+        let res;
+        try {
+            res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        } catch (e) {
+            return { success: false, error: 'Нет связи с сервером', status: 0 };
+        }
+        let data;
+        try { data = await res.json(); }
+        catch (e) { data = { success: false, error: `Ошибка сервера (${res.status})` }; }
+        data.status = res.status;
+        return data;
+    }
+
+    // Authenticated request. A 401 means the session is gone -> back to the login screen.
+    async function req(url, body = {}) {
+        const data = await postJson(url, { nick: currentNick, token: sessionToken, ...body });
+        if (data.status === 401) logout(data.error);
+        return data;
+    }
+
+    // ---------- config / shop ----------
+    async function loadConfig() {
+        try {
+            const res = await fetch('/api/config');
+            CONFIG = await res.json();
+            renderShop();
+            renderCallsigns();
+        } catch (e) {
+            console.error('Не удалось загрузить настройки', e);
+        }
+    }
+
+    function renderCallsigns() {
+        const select = $('callsign-input');
+        select.replaceChildren();
+        for (const cs of CONFIG.callsigns) {
+            const opt = el('option', null, `${cs.name} (${cs.bonusText})`);
+            opt.value = cs.name;
+            if (cs.name === CONFIG.defaultCallsign) opt.selected = true;
+            select.appendChild(opt);
+        }
+    }
+
+    function renderShop() {
+        const baitBox = $('shop-baits');
+        baitBox.replaceChildren();
+        for (const [id, bait] of Object.entries(CONFIG.baits)) {
+            const item = el('div', 'shop-item');
+            const title = el('div', null, `${bait.name} (${zoneLabel(bait.zoneMultiplier)} зона)`);
+            title.style.color = BAIT_COLORS[id] || '#fff';
+
+            const price = el('div', null, `${bait.price} ¥`);
+            price.style.cssText = 'font-size: 8px; margin: 4px 0;';
+
+            const owned = el('div', null, 'У ВАС: ');
+            owned.style.cssText = 'font-size: 8px; color:#aaa; margin-bottom: 6px;';
+            const count = el('span', null, '0');
+            count.id = `count-${id}`;
+            owned.appendChild(count);
+
+            const buyBtn = el('button', null, 'КУПИТЬ');
+            buyBtn.onclick = () => buyBait(id);
+
+            const equipBtn = el('button', null, 'ЭКИПИРОВАТЬ');
+            equipBtn.id = `btn-equip-${id}`;
+            equipBtn.style.cssText = 'background:#444; margin-top:4px;';
+            equipBtn.onclick = () => equipBait(id);
+
+            item.append(title, price, owned, buyBtn, equipBtn);
+            baitBox.appendChild(item);
+        }
+
+        const foodBox = $('shop-food');
+        foodBox.replaceChildren();
+        for (const [id, food] of Object.entries(CONFIG.food)) {
+            const item = el('div', 'shop-item');
+            const title = el('div', null, `${food.name} (+${food.restore} еды)`);
+            title.style.color = '#ff9800';
+
+            const unit = el('div', null, `1 шт = ${food.price} ¥`);
+            unit.style.cssText = 'font-size: 7px; color: #aaa; margin-top: 4px;';
+
+            const slider = el('input');
+            slider.type = 'range';
+            slider.min = '1';
+            slider.max = String(CONFIG.maxFoodQty || 10);
+            slider.value = '1';
+
+            const summary = el('div');
+            summary.style.cssText = 'font-size: 8px; margin-bottom: 6px;';
+            const updateSummary = () => {
+                summary.textContent = `К-во: ${slider.value} (${+(slider.value * food.price).toFixed(2)} ¥)`;
+            };
+            slider.oninput = updateSummary;
+            updateSummary();
+
+            const buyBtn = el('button', null, 'КУПИТЬ');
+            buyBtn.onclick = () => buyFood(id, Number(slider.value));
+
+            item.append(title, unit, slider, summary, buyBtn);
+            foodBox.appendChild(item);
+        }
     }
 
     function toggleShop() {
-        const wrapper = document.getElementById('main-wrapper');
+        const wrapper = $('main-wrapper');
         wrapper.classList.toggle('shifted');
-        document.getElementById('shop-toggle').innerText = wrapper.classList.contains('shifted') ? "❮ ЗАКРЫТЬ" : "🛒 МАГАЗИН ❯";
+        $('shop-toggle').textContent = wrapper.classList.contains('shifted') ? '❮ ЗАКРЫТЬ' : '🛒 МАГАЗИН ❯';
     }
 
-    function updateFoodUI(foodId, basePrice) {
-        const qty = document.getElementById(`slider-${foodId}`).value;
-        document.getElementById(`qty-${foodId}`).innerText = qty;
-        document.getElementById(`total-${foodId}`).innerText = qty * basePrice;
-    }
+    // ---------- auth ----------
+    async function auth(mode) {
+        const nick = $('nick-input').value.trim();
+        const password = $('pass-input').value.trim();
+        const callsign = $('callsign-input').value;
+        $('auth-error').textContent = '';
 
-    async function req(url, body) {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nick: currentNick, token: sessionToken, ...body })
-        });
-        return res.json();
-    }
+        if (!nick || !password) return ($('auth-error').textContent = 'Заполните ник и пароль!');
+        if (mode === 'register' && CONFIG && password.length < CONFIG.minPasswordLength) {
+            return ($('auth-error').textContent = `Пароль должен быть не короче ${CONFIG.minPasswordLength} символов!`);
+        }
 
-    async function login() {
-        currentNick = document.getElementById('nick-input').value.trim();
-        const password = document.getElementById('pass-input').value.trim();
-        const callsign = document.getElementById('callsign-input').value;
+        const data = await postJson(`/api/${mode}`, { nick, password, callsign });
+        if (!data.success) return ($('auth-error').textContent = data.error || 'Ошибка');
 
-        if (!currentNick || !password) return alert("Заполните ник и пароль!");
-
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nick: currentNick, password, callsign })
-        });
-        const data = await res.json();
-
-        if (!data.success) return alert(data.error);
-
+        currentNick = data.nick;          // the server's lowercase nick, not what was typed
         sessionToken = data.token;
         localStorage.setItem('bf_nick', currentNick);
         sessionStorage.setItem('bf_token', sessionToken);
+        $('pass-input').value = '';
+        showGame(data);
+    }
 
-        if (data.isAdmin) document.getElementById('admin-toggle').style.display = 'block';
-
-        document.getElementById('auth-section').style.display = 'none';
-        document.getElementById('fishing-section').style.display = 'block';
+    function showGame(data) {
+        $('auth-section').style.display = 'none';
+        $('fishing-section').style.display = 'block';
+        $('admin-toggle').style.display = data.isAdmin ? 'block' : 'none';
         updateUI(data);
     }
 
+    function logout(message) {
+        sessionToken = '';
+        sessionStorage.removeItem('bf_token');
+        stopMinigame();
+        clearTimeout(biteTimer);
+        clearInterval(castCooldownTimer);
+        currentHookToken = null;
+        $('minigame-modal').style.display = 'none';
+        $('fishing-float').style.display = 'none';
+        $('cast-btn').disabled = false;
+        $('cast-btn').textContent = CAST_BTN_TEXT;
+        $('fishing-section').style.display = 'none';
+        $('auth-section').style.display = 'block';
+        $('admin-toggle').style.display = 'none';
+        closeAdminModal();
+        $('nick-input').value = currentNick;
+        $('auth-error').textContent = message || '';
+    }
+
+    // ---------- UI ----------
+    function updateHunger(hunger) {
+        const h = hunger !== undefined ? hunger : 100;
+        $('hunger-bar-fill').style.width = `${h}%`;
+        $('hunger-text').textContent = `СЫТОСТЬ: ${h} / 100`;
+    }
+
+    function updateBaits(baits, activeBait) {
+        if (!baits) return;
+        for (const id of Object.keys(baits)) {
+            const count = $(`count-${id}`);
+            if (count) count.textContent = baits[id] || 0;
+            const btn = $(`btn-equip-${id}`);
+            if (!btn) continue;
+            const equipped = activeBait === id;
+            btn.textContent = equipped ? 'ЭКИПИРОВАНО' : 'ЭКИПИРОВАТЬ';
+            btn.style.background = equipped ? '#2e7d32' : '#444';
+        }
+    }
+
     function updateUI(data) {
-        document.getElementById('total-yuan').innerText = parseFloat(data.yuan).toFixed(2);
-        document.getElementById('total-score').innerText = data.score;
-        document.getElementById('callsign-display').innerText = `ПОЗЫВНОЙ: ${data.callsign} (${data.callsignBonus})`;
+        $('total-yuan').textContent = parseFloat(data.yuan).toFixed(2);
+        $('total-score').textContent = data.score;
+        $('callsign-display').textContent = `ПОЗЫВНОЙ: ${data.callsign} (${data.callsignBonus})`;
+        updateHunger(data.hunger);
 
-        const hungerVal = data.hunger !== undefined ? data.hunger : 100;
-        document.getElementById('hunger-bar-fill').style.width = `${hungerVal}%`;
-        document.getElementById('hunger-text').innerText = `СЫТОСТЬ: ${hungerVal} / 100`;
+        $('warning-badge').style.display = data.warnings > 0 ? 'block' : 'none';
+        $('warn-count').textContent = data.warnings || 0;
 
-        if (data.warnings > 0) {
-            document.getElementById('warning-badge').style.display = 'block';
-            document.getElementById('warn-count').innerText = data.warnings;
-        } else {
-            document.getElementById('warning-badge').style.display = 'none';
-        }
-
-        if (data.baits) {
-            document.getElementById('count-bread').innerText = data.baits.bread || 0;
-            document.getElementById('count-worm').innerText = data.baits.worm || 0;
-            document.getElementById('count-premium').innerText = data.baits.premium || 0;
-
-            ['bread', 'worm', 'premium'].forEach(b => {
-                const btn = document.getElementById(`btn-equip-${b}`);
-                if (data.activeBait === b) {
-                    btn.innerText = "ЭКИПИРОВАНО";
-                    btn.style.background = "#2e7d32";
-                } else {
-                    btn.innerText = "ЭКИПИРОВАТЬ";
-                    btn.style.background = "#444";
-                }
-            });
-        }
-
-        renderInventory(data.inventory);
+        updateBaits(data.baits, data.activeBait);
+        renderInventory(data.inventory || []);
     }
 
     async function syncData() {
-        const data = await req('/api/sync', {});
-        if (data.yuan !== undefined) {
-            document.getElementById('auth-section').style.display = 'none';
-            document.getElementById('fishing-section').style.display = 'block';
-            if (data.isAdmin) document.getElementById('admin-toggle').style.display = 'block';
-            updateUI(data);
+        if (!CONFIG) await loadConfig();
+        const data = await req('/api/sync');
+        if (data.success) showGame(data);
+    }
+
+    function renderInventory(inv) {
+        const list = $('inventory-list');
+        list.replaceChildren();
+        if (inv.length === 0) {
+            const empty = el('div', null, 'Пусто');
+            empty.style.cssText = 'text-align:center; color:#666;';
+            list.appendChild(empty);
+            return;
+        }
+        for (const fish of inv) {
+            const card = el('div', 'fish-card');
+            const top = el('div', 'fish-card-top');
+            const name = el('span', null, fish.displayName);
+            name.style.color = fish.isTrophy ? '#ffd700' : '#fff';
+            top.append(name, el('span', null, formatWeight(fish.weight)));
+            card.append(top, el('div', 'fish-card-price', `${fish.price} ¥`));
+            list.appendChild(card);
         }
     }
 
+    // ---------- shop actions ----------
     async function buyBait(baitId) {
         const data = await req('/api/buyBait', { baitId });
         if (data.success) syncData();
-        else alert(data.error);
+        else if (data.status !== 401) alert(data.error);
     }
 
     async function equipBait(baitId) {
         const data = await req('/api/equipBait', { baitId });
         if (data.success) syncData();
-        else alert(data.error);
+        else if (data.status !== 401) alert(data.error);
     }
 
-    async function buyFood(foodId) {
-        const amount = document.getElementById(`slider-${foodId}`).value;
+    async function buyFood(foodId, amount) {
         const data = await req('/api/buyFood', { foodId, amount });
-        if (data.success) {
-            syncData();
-        } else {
-            alert(data.error);
-        }
+        if (data.success) syncData();
+        else if (data.status !== 401) alert(data.error);
+    }
+
+    async function sellAllFish() {
+        const data = await req('/api/sellAll');
+        if (data.success && data.earned > 0) setStatus(`Продано на ${data.earned} ¥`);
+        syncData();
+    }
+
+    // ---------- fishing ----------
+    function startCastCooldown(ms) {
+        const btn = $('cast-btn');
+        const until = Date.now() + ms;
+        clearInterval(castCooldownTimer);
+        btn.disabled = true;
+        const tick = () => {
+            const left = until - Date.now();
+            if (left <= 0) {
+                clearInterval(castCooldownTimer);
+                castCooldownTimer = null;
+                btn.disabled = false;
+                btn.textContent = CAST_BTN_TEXT;
+                return;
+            }
+            btn.textContent = `ЖДИ ${Math.ceil(left / 1000)}с`;
+        };
+        tick();
+        castCooldownTimer = setInterval(tick, 200);
     }
 
     async function castLine() {
-        const btn = document.getElementById('cast-btn');
+        const btn = $('cast-btn');
         btn.disabled = true;
 
-        const hookData = await req('/api/cast', {});
-        if (!hookData.success) {
-            alert(hookData.error);
-            btn.disabled = false;
+        const hook = await req('/api/cast');
+        if (!hook.success) {
+            if (hook.status === 401) return;
+            if (hook.retryIn) {
+                setStatus(hook.error);
+                startCastCooldown(hook.retryIn + 100);
+            } else {
+                alert(hook.error);
+                btn.disabled = false;
+            }
             return;
         }
 
-        currentHookToken = hookData.hookToken; // Запоминаем токен заброса
+        currentHookToken = hook.hookToken;
+        updateHunger(hook.hunger);
+        updateBaits(hook.baits, hook.activeBait);
 
-        document.getElementById('hunger-bar-fill').style.width = `${hookData.hunger}%`;
-        document.getElementById('hunger-text').innerText = `СЫТОСТЬ: ${hookData.hunger} / 100`;
+        $('fishing-float').style.display = 'block';
+        setStatus(hook.gift ? 'Добрый рыбак угостил вас рисом 🍚 Ждем поклевку...' : 'Ждем поклевку...');
 
-        document.getElementById('fishing-float').style.display = 'block';
-        document.getElementById('status-text').innerText = "Ждем поклевку...";
-
-        setTimeout(() => {
-            startClockMinigame(hookData);
-        }, 1500 + Math.random() * 2500);
+        // The server decided the bite time; it also checks we didn't start early.
+        clearTimeout(biteTimer);
+        biteTimer = setTimeout(() => startClockMinigame(hook), hook.biteDelay);
     }
 
-    function startClockMinigame(data) {
-        document.getElementById('status-text').innerText = "КЛЮЁТ!";
-        document.getElementById('minigame-modal').style.display = 'flex';
+    function startClockMinigame(hook) {
+        if (hook.hookToken !== currentHookToken) return;   // stale timer (e.g. after logout)
 
-        mgZoneStart = data.zoneStart;
-        mgZoneSize = data.zoneSize;
-        mgSpeed = data.speed;
-        mgHitsDone = 0;
-        mgClickTimestamps = [];
-        mgAngle = 0;
-        lastFrameTime = performance.now();
+        setStatus('КЛЮЁТ!');
+        $('minigame-modal').style.display = 'flex';
 
-        document.getElementById('mg-counter').innerText = `ПОПАДАНИЙ: 0 / 5`;
-        
-        const canvas = document.getElementById('clock-canvas');
-        canvas.onclick = handleClockClick;
+        mg = {
+            zones: hook.zones,
+            zoneSize: hook.zoneSize,
+            speed: hook.speed,
+            degPerSec: hook.angularSpeed,
+            required: hook.requiredHits,
+            hits: 0,
+            offsets: [],
+            lastHitT: -Infinity,
+            frameT: 0,
+            startTime: performance.now(),
+            animId: null,
+            done: false
+        };
 
-        if (mgAnimId) cancelAnimationFrame(mgAnimId);
+        $('mg-required').textContent = mg.required;
+        updateMgCounter();
+        $('clock-canvas').onclick = handleClockClick;
         animateClock();
     }
 
+    // Arrow position is a pure function of time; the server uses the exact same formula.
+    function mgAngleAt(t) {
+        return (mg.degPerSec * mg.speed * t / 1000) % 360;
+    }
+
+    function updateMgCounter() {
+        $('mg-counter').textContent = `ПОПАДАНИЙ: ${mg.hits} / ${mg.required}`;
+    }
+
     function animateClock() {
-        const canvas = document.getElementById('clock-canvas');
+        if (!mg || mg.done) return;
+        const t = Math.round(performance.now() - mg.startTime);
+        if (t > MINIGAME_TIME_LIMIT_MS) return failMinigame('Слишком долго — рыба ушла.');
+
+        mg.frameT = t;   // clicks are judged by the frame the player is looking at
+        drawClock(mgAngleAt(t), mg.zones[mg.hits], mg.zoneSize);
+        mg.animId = requestAnimationFrame(animateClock);
+    }
+
+    function drawClock(angle, zoneStart, zoneSize) {
+        const canvas = $('clock-canvas');
         const ctx = canvas.getContext('2d');
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
         const radius = 100;
-
-        const now = performance.now();
-        const dt = (now - lastFrameTime) / 1000;
-        lastFrameTime = now;
-
-        mgAngle = (mgAngle + 180 * mgSpeed * dt) % 360;
 
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -434,23 +595,17 @@
         ctx.stroke();
 
         for (let i = 0; i < 12; i++) {
-            const angleRad = (i * 30 - 90) * Math.PI / 180;
-            const x1 = cx + (radius - 12) * Math.cos(angleRad);
-            const y1 = cy + (radius - 12) * Math.sin(angleRad);
-            const x2 = cx + radius * Math.cos(angleRad);
-            const y2 = cy + radius * Math.sin(angleRad);
-            
+            const a = (i * 30 - 90) * Math.PI / 180;
             ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
+            ctx.moveTo(cx + (radius - 12) * Math.cos(a), cy + (radius - 12) * Math.sin(a));
+            ctx.lineTo(cx + radius * Math.cos(a), cy + radius * Math.sin(a));
             ctx.strokeStyle = '#ff9800';
             ctx.lineWidth = 2;
             ctx.stroke();
         }
 
-        const radStart = (mgZoneStart - 90) * Math.PI / 180;
-        const radEnd = (mgZoneStart + mgZoneSize - 90) * Math.PI / 180;
-
+        const radStart = (zoneStart - 90) * Math.PI / 180;
+        const radEnd = (zoneStart + zoneSize - 90) * Math.PI / 180;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, radius - 2, radStart, radEnd);
@@ -461,10 +616,9 @@
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        const arrowRad = (mgAngle - 90) * Math.PI / 180;
+        const arrowRad = (angle - 90) * Math.PI / 180;
         const arrowX = cx + (radius - 8) * Math.cos(arrowRad);
         const arrowY = cy + (radius - 8) * Math.sin(arrowRad);
-
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(arrowX, arrowY);
@@ -481,135 +635,141 @@
         ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
         ctx.fillStyle = '#ff9800';
         ctx.fill();
-
-        mgAnimId = requestAnimationFrame(animateClock);
     }
 
     function handleClockClick() {
-        const normAngle = (mgAngle % 360 + 360) % 360;
-        const zoneEnd = mgZoneStart + mgZoneSize;
+        if (!mg || mg.done) return;
+        const t = mg.frameT;
+        if (t - mg.lastHitT < CLIENT_MIN_CLICK_GAP_MS) return;   // double-click, ignore
 
-        let inZone = false;
-        if (zoneEnd <= 360) {
-            inZone = normAngle >= mgZoneStart && normAngle <= zoneEnd;
+        const angle = mgAngleAt(t);
+        const zoneStart = mg.zones[mg.hits];
+        if (angle >= zoneStart && angle <= zoneStart + mg.zoneSize) {
+            mg.hits++;
+            mg.offsets.push(t);
+            mg.lastHitT = t;
+            updateMgCounter();
+            if (mg.hits >= mg.required) finishMinigame();
         } else {
-            inZone = normAngle >= mgZoneStart || normAngle <= (zoneEnd % 360);
-        }
-
-        if (inZone) {
-            mgHitsDone++;
-            mgClickTimestamps.push(Date.now());
-            document.getElementById('mg-counter').innerText = `ПОПАДАНИЙ: ${mgHitsDone} / 5`;
-
-            if (mgHitsDone >= 5) {
-                finishMinigame();
-            } else {
-                mgZoneStart = Math.floor(Math.random() * (360 - mgZoneSize));
-            }
-        } else {
-            failMinigame();
+            failMinigame('Мимо! Рыба сорвалась.');
         }
     }
 
-    function failMinigame() {
-        cancelAnimationFrame(mgAnimId);
-        document.getElementById('minigame-modal').style.display = 'none';
-        document.getElementById('fishing-float').style.display = 'none';
-        document.getElementById('status-text').innerText = "Мимо! Рыба сорвалась.";
-        document.getElementById('cast-btn').disabled = false;
+    function stopMinigame() {
+        if (!mg) return;
+        mg.done = true;
+        cancelAnimationFrame(mg.animId);
+        $('clock-canvas').onclick = null;
+    }
+
+    function hideMinigame() {
+        $('minigame-modal').style.display = 'none';
+        $('fishing-float').style.display = 'none';
+    }
+
+    function failMinigame(message) {
+        stopMinigame();
+        hideMinigame();
+        setStatus(message);
         currentHookToken = null;
+        // The server blocks recasting for a few seconds after a lost fish (anti-reroll).
+        startCastCooldown(((CONFIG && CONFIG.abandonCooldownMs) || 3000) + 200);
     }
 
     async function finishMinigame() {
-        cancelAnimationFrame(mgAnimId);
-        document.getElementById('minigame-modal').style.display = 'none';
-        document.getElementById('fishing-float').style.display = 'none';
+        const offsets = mg.offsets.slice();
+        stopMinigame();
+        hideMinigame();
+        setStatus('Вытаскиваем...');
 
-        const data = await req('/api/catch', { 
-            hookToken: currentHookToken, 
-            clickTimestamps: mgClickTimestamps 
-        });
-
+        const data = await req('/api/catch', { hookToken: currentHookToken, clickOffsets: offsets });
         currentHookToken = null;
+        if (data.status === 401) return;
 
         if (data.success) {
-            document.getElementById('status-text').innerText = `ПОЙМАН: ${data.fish.displayName}`;
-            syncData();
+            setStatus(`ПОЙМАН: ${data.fish.displayName} (${formatWeight(data.fish.weight)})`);
         } else {
-            alert(data.reason);
-            document.getElementById('status-text').innerText = "СОРВАЛОСЬ!";
-            syncData();
+            alert(data.reason || data.error);
+            setStatus('СОРВАЛОСЬ!');
         }
-        document.getElementById('cast-btn').disabled = false;
+        await syncData();
+        $('cast-btn').disabled = false;
+        $('cast-btn').textContent = CAST_BTN_TEXT;
     }
 
-    async function sellAllFish() {
-        await req('/api/sellAll', {});
-        syncData();
-    }
-
-    function renderInventory(inv) {
-        const list = document.getElementById('inventory-list');
-        list.innerHTML = inv.length === 0 ? "<div style='text-align:center; color:#666;'>Пусто</div>" : "";
-        inv.forEach(fish => {
-            const div = document.createElement('div');
-            div.className = 'fish-card';
-            div.innerHTML = `
-                <div style="display:flex; justify-content:space-between; font-size:8px;">
-                    <span style="color:${fish.isTrophy ? '#ffd700' : '#fff'}">${fish.displayName}</span>
-                    <span>${fish.weight >= 1000 ? (fish.weight/1000).toFixed(2)+' кг' : fish.weight+' г'}</span>
-                </div>
-                <div style="color:#ffd700; font-size:8px; margin-top:4px;">${fish.price} ¥</div>
-            `;
-            list.appendChild(div);
-        });
-    }
-
+    // ---------- admin ----------
     async function openAdminModal() {
-        document.getElementById('admin-modal').style.display = 'flex';
-        const data = await req('/api/admin/getPlayers', {});
-        const container = document.getElementById('admin-players-list');
-        container.innerHTML = '';
+        $('admin-modal').style.display = 'flex';
+        const container = $('admin-players-list');
+        container.textContent = 'Загрузка...';
 
-        if (!data.success) return;
-
-        data.players.forEach(p => {
-            const row = document.createElement('div');
-            row.className = 'admin-row';
-            row.innerHTML = `
-                <div>
-                    <strong>${p.nick}</strong> [${p.callsign}] ${p.isAdmin ? '👑' : ''}<br>
-                    Еда: ${p.hunger}% | Предупреждений: ${p.warnings}
-                </div>
-                <div>
-                    Юани: <input type="number" id="adm-yuan-${p.nick}" class="admin-input" value="${p.yuan}">
-                    Бычки: <input type="number" id="adm-score-${p.nick}" class="admin-input" value="${p.score}">
-                </div>
-                <div>
-                    <button onclick="savePlayerData('${p.nick}')" style="padding:4px;">СОХРАНИТЬ</button>
-                    <button onclick="deletePlayer('${p.nick}')" style="padding:4px; background:#d32f2f;">Х</button>
-                </div>
-            `;
-            container.appendChild(row);
-        });
+        const data = await req('/api/admin/getPlayers');
+        container.replaceChildren();
+        if (!data.success) {
+            container.textContent = data.error || 'Ошибка';
+            return;
+        }
+        for (const p of data.players) container.appendChild(buildAdminRow(p));
     }
 
-    async function savePlayerData(targetNick) {
-        const newYuan = document.getElementById(`adm-yuan-${targetNick}`).value;
-        const newScore = document.getElementById(`adm-score-${targetNick}`).value;
-        await req('/api/updatePlayer', { targetNick, newYuan, newScore });
+    // Built with textContent / closures only: a nick can never become HTML or JS.
+    function buildAdminRow(p) {
+        const row = el('div', 'admin-row');
+
+        const info = el('div');
+        info.append(
+            el('strong', null, p.nick),
+            ` [${p.callsign}] ${p.isAdmin ? '👑' : ''}`,
+            el('br'),
+            `Еда: ${p.hunger}% | Предупр.: ${p.warnings} | Рыб: ${p.inventoryCount}`
+        );
+
+        const yuanInput = el('input', 'admin-input');
+        yuanInput.type = 'number';
+        yuanInput.min = '0';
+        yuanInput.step = '0.01';
+        yuanInput.value = p.yuan;
+
+        const scoreInput = el('input', 'admin-input');
+        scoreInput.type = 'number';
+        scoreInput.min = '0';
+        scoreInput.step = '1';
+        scoreInput.value = p.score;
+
+        const inputs = el('div');
+        inputs.append('Юани: ', yuanInput, ' Бычки: ', scoreInput);
+
+        const saveBtn = el('button', null, 'СОХРАНИТЬ');
+        saveBtn.style.padding = '4px';
+        saveBtn.onclick = () => savePlayerData(p.nick, yuanInput.value, scoreInput.value);
+
+        const deleteBtn = el('button', null, 'Х');
+        deleteBtn.style.cssText = 'padding:4px; background:#d32f2f;';
+        deleteBtn.onclick = () => deletePlayer(p.nick);
+
+        const actions = el('div');
+        actions.append(saveBtn, deleteBtn);
+
+        row.append(info, inputs, actions);
+        return row;
+    }
+
+    async function savePlayerData(targetNick, newYuan, newScore) {
+        const data = await req('/api/admin/updatePlayer', { targetNick, newYuan, newScore });
+        if (!data.success) alert(data.error);
         openAdminModal();
         if (targetNick === currentNick) syncData();
     }
 
     async function deletePlayer(targetNick) {
         if (!confirm(`Удалить ${targetNick}?`)) return;
-        await req('/api/updatePlayer', { targetNick, deleteAccount: true });
+        const data = await req('/api/admin/updatePlayer', { targetNick, deleteAccount: true });
+        if (!data.success) alert(data.error);
         openAdminModal();
     }
 
     function closeAdminModal() {
-        document.getElementById('admin-modal').style.display = 'none';
+        $('admin-modal').style.display = 'none';
     }
 </script>
 
