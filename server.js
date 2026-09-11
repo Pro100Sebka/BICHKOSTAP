@@ -370,7 +370,7 @@ function publicState(nick, p) {
         score: p.score,
         hunger: p.hunger,
         inventory: p.inventory,
-        houses,
+        houses: p.houses,
         baits: p.baits,
         activeBait: p.activeBait,
         warnings: p.warnings
